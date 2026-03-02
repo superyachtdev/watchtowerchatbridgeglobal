@@ -13,7 +13,7 @@ let alreadyWalking = false
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
   "Super","Elite","Titan","Immortal","Hero","Legend","Invaded",
-  "Trainee","Mod","Senior Mod","Admin","Manager","Developer","Owner"
+  "Trainee","Moderator","Senior Mod","Admin","Manager","Developer","Owner"
 ]
 
 // ================= MESSAGE MEMORY =================
@@ -39,7 +39,7 @@ function getRankColor(rank) {
     Invaded: 0xF1C40F,
 
     Trainee: 0xFFFF55,
-    Mod: 0x9B59B6,
+    Moderator: 0x9B59B6,
     "Senior Mod": 0x6C3483,
     Admin: 0xFF5555,
     Manager: 0xC0392B,
