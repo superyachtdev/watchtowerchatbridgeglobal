@@ -72,10 +72,12 @@ async function walkToNPC() {
 
   bot.once("goal_reached", async () => {
     await bot.waitForTicks(10)
+
     const entity = bot.nearestEntity(e =>
       (e.type === "player" || e.type === "mob") &&
       bot.entity.position.distanceTo(e.position) < 5
     )
+
     if (!entity) return
 
     await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
@@ -88,44 +90,93 @@ async function walkToNPC() {
 
 // ================= CHAT PARSER =================
 function parseChat(message) {
-  if (message.includes("\n")) return null
+  try {
+    if (message.includes("\n")) return null
 
-  const colon = message.indexOf(":")
-  if (colon === -1) return null
+    const colon = message.indexOf(":")
+    if (colon === -1) return null
 
-  let before = message.slice(0, colon).trim()
-  const chat = message.slice(colon + 1).trim()
+    const before = message.slice(0, colon).trim()
+    const chat = message.slice(colon + 1).trim()
+    if (!chat) return null
 
-  let username = before.includes("]")
-    ? before.split("]").pop().trim()
-    : before
+    // Extract username section (after rank brackets)
+    let usernameSection = before.includes("]")
+      ? before.split("]").pop().trim()
+      : before
 
-  username = username.replace(/^\*\s*/, "")
-  username = username.replace(/§[0-9a-fk-or]/gi, "")
-  username = username.replace(/&[0-9a-fk-or]/gi, "")
+    // ================= RANK DETECTION =================
+    let detectedRank = null
 
-  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
-
-  let rank = "Invaded"
-  for (const r of HUB_RANKS) {
-    if (before.includes(r)) {
-      rank = r
-      break
+    // 1️⃣ Detect Default via color code BEFORE cleaning
+    if (usernameSection.includes("&7") || usernameSection.includes("§7")) {
+      detectedRank = "Default"
     }
-  }
 
-  return { username, rank, message: chat }
+    // 2️⃣ Detect official ranks
+    if (!detectedRank) {
+      for (const r of HUB_RANKS) {
+        if (before.includes(r)) {
+          detectedRank = r
+          break
+        }
+      }
+    }
+
+    // 3️⃣ Fallback = Invaded (custom ranks inherit this)
+    if (!detectedRank) {
+      detectedRank = "Invaded"
+    }
+
+    // ================= CLEAN USERNAME =================
+    let username = usernameSection
+      .replace(/^\*\s*/, "") // remove nick star
+      .replace(/§[0-9a-fk-or]/gi, "")
+      .replace(/&[0-9a-fk-or]/gi, "")
+      .trim()
+
+    if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
+
+    return {
+      username,
+      rank: detectedRank,
+      message: cleanFormatting(chat)
+    }
+
+  } catch {
+    return null
+  }
+}
+
+function cleanFormatting(text) {
+  return text
+    .replace(/§[0-9a-fk-or]/gi, "")
+    .replace(/&[0-9a-fk-or]/gi, "")
+    .trim()
 }
 
 // ================= DISCORD SEND =================
 function getRankColor(rank) {
   const colors = {
-    Super:0x55FF55, Elite:0x5555FF, Hero:0xFFAA00, Legend:0x00AA00,
-    Titan:0xFF55FF, Immortal:0x00AAAA, Invaded:0xF1C40F,
-    Trainee:0xFFFF55, Mod:0x9B59B6, "Senior Mod":0x6C3483,
-    Admin:0xFF5555, Manager:0xC0392B, Developer:0x00E5FF,
-    Owner:0x8B0000
+    Super:0x55FF55,
+    Elite:0x5555FF,
+    Hero:0xFFAA00,
+    Legend:0x00AA00,
+    Titan:0xFF55FF,
+    Immortal:0x00AAAA,
+    Invaded:0xF1C40F,
+
+    Trainee:0xFFFF55,
+    Mod:0x9B59B6,
+    "Senior Mod":0x6C3483,
+    Admin:0xFF5555,
+    Manager:0xC0392B,
+    Developer:0x00E5FF,
+    Owner:0x8B0000,
+
+    Default:0xAAAAAA
   }
+
   return colors[rank] || 0xF1C40F
 }
 
@@ -140,7 +191,11 @@ async function sendToDiscord(data) {
       iconURL: `https://mc-heads.net/avatar/${encodeURIComponent(data.username)}`
     })
     .setDescription(`💬 **Message**\n> ${data.message}`)
-    .addFields({ name: "🏷 Rank", value: `\`${data.rank}\``, inline: true })
+    .addFields({
+      name: "🏷 Rank",
+      value: `\`${data.rank}\``,
+      inline: true
+    })
     .setTimestamp()
 
   await channel.send({ embeds: [embed] })
