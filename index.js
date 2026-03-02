@@ -100,35 +100,32 @@ function parseChat(message) {
     const chat = message.slice(colon + 1).trim()
     if (!chat) return null
 
-    // Extract username section (after rank brackets)
-    let usernameSection = before.includes("]")
-      ? before.split("]").pop().trim()
-      : before
-
-    // ================= RANK DETECTION =================
     let detectedRank = null
+    let usernameSection = before
 
-    // 1️⃣ Detect Default via color code BEFORE cleaning
-    if (usernameSection.includes("&7") || usernameSection.includes("§7")) {
+    // 🔥 If message contains a bracket, extract rank + username
+    if (before.includes("[")) {
+      const match = before.match(/\[(.*?)\]/)
+
+      if (match && match[1]) {
+        const bracketRank = match[1].trim()
+
+        if (HUB_RANKS.includes(bracketRank)) {
+          detectedRank = bracketRank
+        } else {
+          // Custom ranks default to Invaded
+          detectedRank = "Invaded"
+        }
+      }
+
+      // Username is after closing bracket
+      usernameSection = before.split("]").pop().trim()
+    } else {
+      // No brackets at all → Default player
       detectedRank = "Default"
     }
 
-    // 2️⃣ Detect official ranks
-    if (!detectedRank) {
-      for (const r of HUB_RANKS) {
-        if (before.includes(r)) {
-          detectedRank = r
-          break
-        }
-      }
-    }
-
-    // 3️⃣ Fallback = Invaded (custom ranks inherit this)
-    if (!detectedRank) {
-      detectedRank = "Invaded"
-    }
-
-    // ================= CLEAN USERNAME =================
+    // Clean username
     let username = usernameSection
       .replace(/^\*\s*/, "") // remove nick star
       .replace(/§[0-9a-fk-or]/gi, "")
