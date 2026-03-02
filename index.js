@@ -16,42 +16,95 @@ const HUB_RANKS = [
   "Trainee","Moderator","Senior Mod","Admin","Manager","Developer","Owner"
 ]
 
-// ================= EXPANDED KEYWORDS =================
-const SLURS = [
-  "nigger","nigga","faggot","tranny","kike","dirty jew",
-  "i hate gays","i hate blacks","i hate jews"
+// ================= RULE KEYWORDS =================
+
+// 2️⃣ Inappropriate Topics
+const INAPPROPRIATE = [
+  "have sex","sex with","porn","nsfw","onlyfans",
+  "deepthroat","cum","nudes","send pics",
+  "kill yourself as a joke","rape joke",
+  "hitler was right","9/11 was funny"
 ]
 
-const SUICIDE = [
-  "kys","kill yourself","go kill yourself","slit your wrists",
-  "hang yourself","jump off a bridge","hope you die",
-  "hope you get cancer","hope your mom dies"
-]
-
-const THREATS = [
-  "i will find you","i will kill you","kill your family",
-  "i'm going to dox you","i'll pull your ip",
-  "watch your back","i'll beat you up"
-]
-
-const SEXUAL = [
-  "have sex","porn","nsfw","suck my","send nudes",
-  "onlyfans","rule34","deepthroat","cum","dick pic"
-]
-
-const SOLICITATION = [
-  "selling account","buying rank","selling rank",
-  "selling robux","selling vbucks",
-  "buy my account","paypal me","cashapp me"
-]
-
+// 3️⃣ Toxicity
 const TOXICITY = [
-  "retard","stfu","fuck you","fk you","f u",
-  "you suck","get cancer","loser","no life"
+  "fuck you","fk you","f u","stfu",
+  "you suck","loser","no life","idiot",
+  "retard","shut up kid"
 ]
 
-const AD_LINK_PATTERNS = [
-  "discord.gg","http://","https://",".net",".org",".ru"
+// 4️⃣ Suicide Encouragement
+const SUICIDE = [
+  "kys","kill yourself","go kill yourself",
+  "slit your wrists","hang yourself",
+  "hope you die","hope you get cancer",
+  "hope your mom dies"
+]
+
+// 5️⃣ Threats
+const THREATS = [
+  "i will find you","i will kill you",
+  "kill your family","watch your back",
+  "i'll dox you","pull your ip",
+  "i'll beat you up"
+]
+
+// 6️⃣ Faking Messages
+const FAKE_STAFF_PATTERNS = [
+  "has been banned",
+  "has been permanently banned",
+  "has been muted",
+  "you have been banned",
+  "staff announcement"
+]
+
+// 7️⃣ Derogatory Chat
+const SLURS = [
+  "nigger","faggot","tranny",
+  "dirty jew","i hate gays",
+  "i hate blacks","i hate jews",
+  "cracker"
+]
+
+// 8️⃣ Inappropriate Links
+const LINK_PATTERNS = [
+  "discord.gg",
+  "http://",
+  "https://",
+  ".net",
+  ".org",
+  ".ru"
+]
+
+// 9️⃣ Solicitation
+const SOLICITATION = [
+  "selling account",
+  "buying rank for",
+  "paypal me",
+  "cashapp me",
+  "selling robux",
+  "selling vbucks",
+  "trading riot points"
+]
+
+// 10️⃣ Mass Messaging (basic detection)
+const recentMessages = new Map()
+
+// 11️⃣ Filter Bypass (regex based)
+const BYPASS_REGEX = [
+  /f\s*u\s*c\s*k/i,
+  /k\s*y\s*s/i,
+  /n\s*i\s*g\s*g/i,
+  /s\s*l\s*u\s*r/i
+]
+
+// 12️⃣ Leaking Private Info
+const PRIVATE_INFO_REGEX = [
+  /\b\d{1,3}(\.\d{1,3}){3}\b/, // IP address
+  /\b\d{3}-\d{2}-\d{4}\b/, // SSN format
+  /\b\d{5}\b/, // ZIP code pattern
+  /instagram\.com\//i,
+  /snapchat\.com\//i
 ]
 
 // ================= RANK COLORS =================
@@ -64,7 +117,6 @@ function getRankColor(rank) {
     Titan: 0xFF55FF,
     Immortal: 0x00AAAA,
     Invaded: 0xF1C40F,
-
     Trainee: 0xFFFF55,
     Moderator: 0x9B59B6,
     "Senior Mod": 0x6C3483,
@@ -72,10 +124,8 @@ function getRankColor(rank) {
     Manager: 0xC0392B,
     Developer: 0x00E5FF,
     Owner: 0x8B0000,
-
     Default: 0xAAAAAA
   }
-
   return colors[rank] || 0xF1C40F
 }
 
@@ -84,9 +134,7 @@ async function startDiscord() {
   discordClient = new Client({
     intents: [GatewayIntentBits.Guilds]
   })
-
   await discordClient.login(process.env.DISCORD_TOKEN)
-  console.log("🤖 Discord connected:", discordClient.user.tag)
 }
 
 // ================= BOT =================
@@ -105,7 +153,6 @@ function startBot() {
   bot.loadPlugin(pathfinder)
 
   bot.once("spawn", () => {
-    console.log("🌍 Spawned in hub")
     setTimeout(() => walkToNPC(), 6000)
   })
 
@@ -138,116 +185,93 @@ async function walkToNPC() {
   const mcData = require("minecraft-data")(bot.version)
   bot.pathfinder.setMovements(new Movements(bot, mcData))
   bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
-
-  bot.once("goal_reached", async () => {
-    await bot.waitForTicks(20)
-
-    const entity = bot.nearestEntity(e =>
-      e.position &&
-      bot.entity.position.distanceTo(e.position) < 5 &&
-      (e.type === "mob" || e.type === "player")
-    )
-
-    if (!entity) {
-      alreadyWalking = false
-      return setTimeout(walkToNPC, 5000)
-    }
-
-    await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
-    await bot.waitForTicks(10)
-    bot.activateEntity(entity)
-  })
 }
 
 // ================= CHAT PARSER =================
 function parseChat(message) {
-  try {
-    const colon = message.indexOf(":")
-    if (colon === -1) return null
+  const colon = message.indexOf(":")
+  if (colon === -1) return null
 
-    const before = message.slice(0, colon).trim()
-    const chat = message.slice(colon + 1).trim()
-    if (!chat) return null
+  const before = message.slice(0, colon).trim()
+  const chat = message.slice(colon + 1).trim()
+  if (!chat) return null
 
-    let detectedRank = "Default"
-    let usernameSection = before
+  let detectedRank = "Default"
+  let usernameSection = before
 
-    if (before.includes("[")) {
-      const match = before.match(/\[(.*?)\]/)
-
-      if (match && match[1]) {
-        const normalized = match[1].trim().replace(/-/g, " ").toLowerCase()
-        const found = HUB_RANKS.find(r => r.toLowerCase() === normalized)
-        detectedRank = found || "Invaded"
-      }
-
-      usernameSection = before.split("]").pop().trim()
+  if (before.includes("[")) {
+    const match = before.match(/\[(.*?)\]/)
+    if (match && match[1]) {
+      const normalized = match[1].trim().replace(/-/g," ").toLowerCase()
+      const found = HUB_RANKS.find(r => r.toLowerCase() === normalized)
+      detectedRank = found || "Invaded"
     }
+    usernameSection = before.split("]").pop().trim()
+  }
 
-    let username = usernameSection
-      .replace(/^\*\s*/, "")
-      .replace(/§[0-9a-fk-or]/gi, "")
-      .replace(/&[0-9a-fk-or]/gi, "")
-      .trim()
+  let username = usernameSection
+    .replace(/§[0-9a-fk-or]/gi,"")
+    .replace(/&[0-9a-fk-or]/gi,"")
+    .trim()
 
-    if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
+  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
 
-    return {
-      username,
-      rank: detectedRank,
-      message: chat.toLowerCase(),
-      rawMessage: chat
-    }
-
-  } catch {
-    return null
+  return {
+    username,
+    rank: detectedRank,
+    message: chat.toLowerCase(),
+    rawMessage: chat
   }
 }
 
 // ================= MODERATION =================
 function runModeration(data) {
-  const { message } = data
+  const { message, rawMessage, username } = data
   let violations = []
 
-  // Slurs
-  if (SLURS.some(w => message.includes(w)))
-    violations.push("Derogatory Chat")
+  if (INAPPROPRIATE.some(w => message.includes(w)))
+    violations.push("Inappropriate Topics")
 
-  // Suicide Encouragement
-  if (SUICIDE.some(w => message.includes(w)))
-    violations.push("Suicide Encouragement")
-
-  // Threats
-  if (THREATS.some(w => message.includes(w)))
-    violations.push("Threat")
-
-  // Sexual / NSFW
-  if (SEXUAL.some(w => message.includes(w)))
-    violations.push("Inappropriate Topic")
-
-  // Solicitation
-  if (SOLICITATION.some(w => message.includes(w)))
-    violations.push("Solicitation")
-
-  // Toxicity
   if (TOXICITY.some(w => message.includes(w)))
     violations.push("Toxicity")
 
-  // Link advertising
-  if (AD_LINK_PATTERNS.some(w => message.includes(w)) &&
+  if (SUICIDE.some(w => message.includes(w)))
+    violations.push("Suicide Encouragement")
+
+  if (THREATS.some(w => message.includes(w)))
+    violations.push("Threats")
+
+  if (FAKE_STAFF_PATTERNS.some(w => message.includes(w)))
+    violations.push("Faking Messages")
+
+  if (SLURS.some(w => message.includes(w)))
+    violations.push("Derogatory Chat")
+
+  if (SOLICITATION.some(w => message.includes(w)))
+    violations.push("Solicitation")
+
+  if (LINK_PATTERNS.some(w => message.includes(w)) &&
       !message.includes("invadedlands"))
-    violations.push("Inappropriate Link")
+    violations.push("Inappropriate Links")
 
-  // Filter bypass detection (stretched letters)
-  if (/(.)\1{4,}/.test(message))
-    violations.push("Filter Bypass / Stretched Word")
+  if (BYPASS_REGEX.some(r => r.test(rawMessage)))
+    violations.push("Filter Bypass")
 
-  // Excessive caps
-  if (data.rawMessage.length > 8) {
-    const caps = data.rawMessage.replace(/[^A-Z]/g, "").length
-    if (caps / data.rawMessage.length > 0.7)
-      violations.push("Excessive Caps")
-  }
+  if (PRIVATE_INFO_REGEX.some(r => r.test(rawMessage)))
+    violations.push("Leaking Private Information")
+
+  // Basic mass messaging detection
+  if (!recentMessages.has(username))
+    recentMessages.set(username, [])
+
+  const history = recentMessages.get(username)
+  history.push(message)
+
+  if (history.length > 5) history.shift()
+
+  const duplicates = history.filter(m => m === message)
+  if (duplicates.length >= 4)
+    violations.push("Mass Messaging")
 
   if (violations.length > 0)
     sendModerationAlert(data, violations)
@@ -275,7 +299,7 @@ async function sendToDiscord(data) {
   await channel.send({ embeds: [embed] })
 }
 
-// ================= MOD ALERT EMBED =================
+// ================= MOD ALERT =================
 async function sendModerationAlert(data, violations) {
   const channel = await discordClient.channels.fetch(process.env.MOD_ALERT_CHANNEL_ID)
   if (!channel) return
