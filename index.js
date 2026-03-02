@@ -9,10 +9,18 @@ let bot
 let reconnecting = false
 let discordClient
 
-const HUB_RANKS = [
-  "Super","Elite","Titan","Immortal","Hero","Legend","Invaded",
-  "Trainee","Mod","Senior Mod","Admin","Manager","Developer","Owner"
-]
+const SERVER_NAME = "Survival"
+
+// ================= MESSAGE MEMORY (SPAM TRACKING) =================
+const messageHistory = new Map() // username -> [{msg, time}]
+
+// ================= KEYWORD DATABASE =================
+const SLURS = ["nigger","faggot","tranny","dirty jew","i hate gays"]
+const SUICIDE = ["kys","kill yourself","slit your wrists","hope you get cancer","hope your mom dies"]
+const THREATS = ["i will find you","i will kill you","kill your family"]
+const SEXUAL = ["have sex","porn","nsfw","suck my"]
+const SOLICITATION = ["selling account","buying rank","trading riot","selling robux"]
+const AD_LINK_PATTERNS = ["discord.gg","http://","https://"]
 
 // ================= DISCORD =================
 async function startDiscord() {
@@ -24,7 +32,7 @@ async function startDiscord() {
   console.log("🤖 Discord connected:", discordClient.user.tag)
 }
 
-// ================= MINECRAFT BOT =================
+// ================= BOT =================
 function startBot() {
   bot = mineflayer.createBot({
     host: process.env.MC_HOST,
@@ -52,6 +60,7 @@ function startBot() {
     if (!parsed) return
 
     sendToDiscord(parsed)
+    runModeration(parsed)
   })
 
   bot.on("end", () => {
@@ -64,140 +73,139 @@ function startBot() {
   })
 }
 
-// ================= WALK + CLICK =================
+// ================= WALK =================
 async function walkToNPC() {
   const mcData = require("minecraft-data")(bot.version)
   bot.pathfinder.setMovements(new Movements(bot, mcData))
   bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
-
-  bot.once("goal_reached", async () => {
-    await bot.waitForTicks(10)
-
-    const entity = bot.nearestEntity(e =>
-      (e.type === "player" || e.type === "mob") &&
-      bot.entity.position.distanceTo(e.position) < 5
-    )
-
-    if (!entity) return
-
-    await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
-    await bot.waitForTicks(5)
-    bot.swingArm("right")
-    await bot.waitForTicks(3)
-    bot.activateEntity(entity)
-  })
 }
 
 // ================= CHAT PARSER =================
 function parseChat(message) {
-  try {
-    if (message.includes("\n")) return null
+  const colon = message.indexOf(":")
+  if (colon === -1) return null
 
-    const colon = message.indexOf(":")
-    if (colon === -1) return null
+  const before = message.slice(0, colon).trim()
+  const chat = message.slice(colon + 1).trim()
+  if (!chat) return null
 
-    const before = message.slice(0, colon).trim()
-    const chat = message.slice(colon + 1).trim()
-    if (!chat) return null
+  let username = before.split("]").pop().trim()
 
-    let detectedRank = null
-    let usernameSection = before
-
-    // 🔥 If message contains a bracket, extract rank + username
-    if (before.includes("[")) {
-      const match = before.match(/\[(.*?)\]/)
-
-      if (match && match[1]) {
-        const bracketRank = match[1].trim()
-
-        if (HUB_RANKS.includes(bracketRank)) {
-          detectedRank = bracketRank
-        } else {
-          // Custom ranks default to Invaded
-          detectedRank = "Invaded"
-        }
-      }
-
-      // Username is after closing bracket
-      usernameSection = before.split("]").pop().trim()
-    } else {
-      // No brackets at all → Default player
-      detectedRank = "Default"
-    }
-
-    // Clean username
-    let username = usernameSection
-      .replace(/^\*\s*/, "") // remove nick star
-      .replace(/§[0-9a-fk-or]/gi, "")
-      .replace(/&[0-9a-fk-or]/gi, "")
-      .trim()
-
-    if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
-
-    return {
-      username,
-      rank: detectedRank,
-      message: cleanFormatting(chat)
-    }
-
-  } catch {
-    return null
-  }
-}
-
-function cleanFormatting(text) {
-  return text
+  username = username
     .replace(/§[0-9a-fk-or]/gi, "")
     .replace(/&[0-9a-fk-or]/gi, "")
     .trim()
+
+  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
+
+  return {
+    username,
+    message: chat.toLowerCase(),
+    rawMessage: chat
+  }
 }
 
-// ================= DISCORD SEND =================
-function getRankColor(rank) {
-  const colors = {
-    Super:0x55FF55,
-    Elite:0x5555FF,
-    Hero:0xFFAA00,
-    Legend:0x00AA00,
-    Titan:0xFF55FF,
-    Immortal:0x00AAAA,
-    Invaded:0xF1C40F,
+// ================= MODERATION ENGINE =================
+function runModeration(data) {
+  const now = Date.now()
+  const { username, message } = data
 
-    Trainee:0xFFFF55,
-    Mod:0x9B59B6,
-    "Senior Mod":0x6C3483,
-    Admin:0xFF5555,
-    Manager:0xC0392B,
-    Developer:0x00E5FF,
-    Owner:0x8B0000,
-
-    Default:0xAAAAAA
+  if (!messageHistory.has(username)) {
+    messageHistory.set(username, [])
   }
 
-  return colors[rank] || 0xF1C40F
+  const history = messageHistory.get(username)
+  history.push({ msg: message, time: now })
+
+  // remove old entries (older than 15s)
+  const recent = history.filter(m => now - m.time < 15000)
+  messageHistory.set(username, recent)
+
+  let violations = []
+
+  // 1️⃣ Spam
+  const identical = recent.filter(m => m.msg === message)
+  if (identical.length >= 3) {
+    violations.push("Spam (3 identical messages in 15s)")
+  }
+
+  // 2️⃣ Slurs
+  if (SLURS.some(w => message.includes(w))) {
+    violations.push("Derogatory Chat / Slur")
+  }
+
+  // 3️⃣ Suicide Encouragement
+  if (SUICIDE.some(w => message.includes(w))) {
+    violations.push("Suicide Encouragement")
+  }
+
+  // 4️⃣ Threats
+  if (THREATS.some(w => message.includes(w))) {
+    violations.push("Threats")
+  }
+
+  // 5️⃣ Inappropriate Topics
+  if (SEXUAL.some(w => message.includes(w))) {
+    violations.push("Inappropriate Topic")
+  }
+
+  // 6️⃣ Solicitation
+  if (SOLICITATION.some(w => message.includes(w))) {
+    violations.push("Solicitation")
+  }
+
+  // 7️⃣ Advertising / Links
+  if (AD_LINK_PATTERNS.some(w => message.includes(w))) {
+    if (!message.includes("invadedlands.net")) {
+      violations.push("Inappropriate Link / Advertising")
+    }
+  }
+
+  if (violations.length > 0) {
+    sendModerationAlert(data, violations)
+  }
 }
 
+// ================= NORMAL CHAT MIRROR =================
 async function sendToDiscord(data) {
   const channel = await discordClient.channels.fetch(process.env.DISCORD_CHANNEL_ID)
   if (!channel) return
 
   const embed = new EmbedBuilder()
-    .setColor(getRankColor(data.rank))
+    .setColor(0xAAAAAA)
     .setAuthor({
       name: data.username,
       iconURL: `https://mc-heads.net/avatar/${encodeURIComponent(data.username)}`
     })
-    .setDescription(`💬 **Message**\n> ${data.message}`)
-    .addFields({
-      name: "🏷 Rank",
-      value: `\`${data.rank}\``,
-      inline: true
-    })
+    .setDescription(`💬 ${data.rawMessage}`)
+    .addFields(
+      { name: "Server", value: SERVER_NAME, inline: true }
+    )
     .setTimestamp()
 
   await channel.send({ embeds: [embed] })
 }
 
+// ================= MOD ALERT EMBED =================
+async function sendModerationAlert(data, violations) {
+  const channel = await discordClient.channels.fetch(process.env.MOD_ALERT_CHANNEL_ID)
+  if (!channel) return
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFF0000)
+    .setTitle("⚠ Potential Rule Violation")
+    .addFields(
+      { name: "Player", value: data.username, inline: true },
+      { name: "Server", value: SERVER_NAME, inline: true },
+      { name: "Triggered Rules", value: violations.join("\n") },
+      { name: "Message", value: `\`\`\`${data.rawMessage}\`\`\`` }
+    )
+    .setTimestamp()
+
+  await channel.send({ embeds: [embed] })
+}
+
+// ================= START =================
 async function init() {
   await startDiscord()
   startBot()
