@@ -73,6 +73,7 @@ function startSMPBot() {
     username: process.env.SMP_USERNAME,
     auth: "microsoft",
     version: "1.20.1",
+    profilesFolder: path.join(__dirname, "auth_cache"), // ✅ ADD THIS
     skipValidation: true,
     disableChatSigning: true
   })
