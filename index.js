@@ -153,10 +153,20 @@ function parseChat(message) {
       const match = before.match(/\[(.*?)\]/)
 
       if (match && match[1]) {
-        const bracketRank = match[1].trim()
+        let bracketRank = match[1].trim()
 
-        if (HUB_RANKS.includes(bracketRank)) {
-          detectedRank = bracketRank
+        // Normalize formatting differences
+        const normalized = bracketRank
+          .replace(/-/g, " ")
+          .toLowerCase()
+
+        // Try to find matching HUB rank (case insensitive)
+        const found = HUB_RANKS.find(r =>
+          r.toLowerCase() === normalized
+        )
+
+        if (found) {
+          detectedRank = found
         } else {
           // Custom ranks default to Invaded
           detectedRank = "Invaded"
@@ -165,7 +175,6 @@ function parseChat(message) {
 
       usernameSection = before.split("]").pop().trim()
     } else {
-      // No brackets at all → Default player
       detectedRank = "Default"
     }
 
