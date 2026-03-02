@@ -10,7 +10,11 @@ let reconnecting = false
 let discordClient
 let alreadyWalking = false
 
-const SERVER_NAME = "Survival"
+// ================= VALID HUB RANKS =================
+const HUB_RANKS = [
+  "Super","Elite","Titan","Immortal","Hero","Legend","Invaded",
+  "Trainee","Mod","Senior Mod","Admin","Manager","Developer","Owner"
+]
 
 // ================= MESSAGE MEMORY =================
 const messageHistory = new Map()
@@ -26,11 +30,26 @@ const AD_LINK_PATTERNS = ["discord.gg","http://","https://"]
 // ================= RANK COLORS =================
 function getRankColor(rank) {
   const colors = {
-    Immortal: 0x00FFFF,
+    Super: 0x55FF55,
+    Elite: 0x5555FF,
+    Hero: 0xFFAA00,
+    Legend: 0x00AA00,
+    Titan: 0xFF55FF,
+    Immortal: 0x00AAAA,
     Invaded: 0xF1C40F,
+
+    Trainee: 0xFFFF55,
+    Mod: 0x9B59B6,
+    "Senior Mod": 0x6C3483,
+    Admin: 0xFF5555,
+    Manager: 0xC0392B,
+    Developer: 0x00E5FF,
+    Owner: 0x8B0000,
+
     Default: 0xAAAAAA
   }
-  return colors[rank] || 0xAAAAAA
+
+  return colors[rank] || 0xF1C40F
 }
 
 // ================= DISCORD =================
@@ -96,7 +115,6 @@ async function walkToNPC() {
   bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
 
   bot.once("goal_reached", async () => {
-    console.log("🎯 Reached NPC location")
     await bot.waitForTicks(20)
 
     const entity = bot.nearestEntity(e =>
@@ -106,12 +124,9 @@ async function walkToNPC() {
     )
 
     if (!entity) {
-      console.log("❌ NPC not found, retrying...")
       alreadyWalking = false
       return setTimeout(walkToNPC, 5000)
     }
-
-    console.log("🖱 Clicking:", entity.username || entity.name)
 
     await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
     await bot.waitForTicks(10)
@@ -123,36 +138,54 @@ async function walkToNPC() {
 
 // ================= CHAT PARSER =================
 function parseChat(message) {
-  const colon = message.indexOf(":")
-  if (colon === -1) return null
+  try {
+    const colon = message.indexOf(":")
+    if (colon === -1) return null
 
-  const before = message.slice(0, colon).trim()
-  const chat = message.slice(colon + 1).trim()
-  if (!chat) return null
+    const before = message.slice(0, colon).trim()
+    const chat = message.slice(colon + 1).trim()
+    if (!chat) return null
 
-  let rank = "Default"
-  let usernameSection = before
+    let detectedRank = "Default"
+    let usernameSection = before
 
-  if (before.includes("[")) {
-    const match = before.match(/\[(.*?)\]/)
-    if (match && match[1]) {
-      rank = match[1]
+    if (before.includes("[")) {
+      const match = before.match(/\[(.*?)\]/)
+
+      if (match && match[1]) {
+        const bracketRank = match[1].trim()
+
+        if (HUB_RANKS.includes(bracketRank)) {
+          detectedRank = bracketRank
+        } else {
+          // Custom ranks default to Invaded
+          detectedRank = "Invaded"
+        }
+      }
+
+      usernameSection = before.split("]").pop().trim()
+    } else {
+      // No brackets at all → Default player
+      detectedRank = "Default"
     }
-    usernameSection = before.split("]").pop().trim()
-  }
 
-  let username = usernameSection
-    .replace(/§[0-9a-fk-or]/gi, "")
-    .replace(/&[0-9a-fk-or]/gi, "")
-    .trim()
+    let username = usernameSection
+      .replace(/^\*\s*/, "")
+      .replace(/§[0-9a-fk-or]/gi, "")
+      .replace(/&[0-9a-fk-or]/gi, "")
+      .trim()
 
-  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
+    if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
 
-  return {
-    username,
-    rank,
-    message: chat.toLowerCase(),
-    rawMessage: chat
+    return {
+      username,
+      rank: detectedRank,
+      message: chat.toLowerCase(),
+      rawMessage: chat
+    }
+
+  } catch {
+    return null
   }
 }
 
@@ -161,9 +194,8 @@ function runModeration(data) {
   const now = Date.now()
   const { username, message } = data
 
-  if (!messageHistory.has(username)) {
+  if (!messageHistory.has(username))
     messageHistory.set(username, [])
-  }
 
   const history = messageHistory.get(username)
   history.push({ msg: message, time: now })
@@ -199,7 +231,7 @@ function runModeration(data) {
     sendModerationAlert(data, violations)
 }
 
-// ================= CLEAN CHAT EMBED (RESTORED DESIGN) =================
+// ================= NORMAL CHAT EMBED =================
 async function sendToDiscord(data) {
   const channel = await discordClient.channels.fetch(process.env.DISCORD_CHANNEL_ID)
   if (!channel) return
@@ -211,10 +243,11 @@ async function sendToDiscord(data) {
       iconURL: `https://mc-heads.net/avatar/${encodeURIComponent(data.username)}`
     })
     .setDescription(`💬 **Message**\n> ${data.rawMessage}`)
-    .addFields(
-      { name: "🏷 Rank", value: `\`${data.rank}\``, inline: true },
-      { name: "🌍 Server", value: SERVER_NAME, inline: true }
-    )
+    .addFields({
+      name: "🏷 Rank",
+      value: `\`${data.rank}\``,
+      inline: true
+    })
     .setTimestamp()
 
   await channel.send({ embeds: [embed] })
@@ -230,7 +263,6 @@ async function sendModerationAlert(data, violations) {
     .setTitle("⚠ Potential Rule Violation")
     .addFields(
       { name: "Player", value: data.username, inline: true },
-      { name: "Server", value: SERVER_NAME, inline: true },
       { name: "Triggered Rules", value: violations.join("\n") },
       { name: "Message", value: `\`\`\`${data.rawMessage}\`\`\`` }
     )
