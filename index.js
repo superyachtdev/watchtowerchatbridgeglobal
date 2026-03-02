@@ -67,14 +67,8 @@ const SLURS = [
 ]
 
 // 8️⃣ Inappropriate Links
-const LINK_PATTERNS = [
-  "discord.gg",
-  "http://",
-  "https://",
-  ".net",
-  ".org",
-  ".ru"
-]
+// 8️⃣ Inappropriate Links (refined)
+const LINK_REGEX = /(discord\.gg|https?:\/\/(?!.*invadedlands))/i
 
 // 9️⃣ Solicitation
 const SOLICITATION = [
@@ -88,7 +82,8 @@ const SOLICITATION = [
 ]
 
 // 10️⃣ Mass Messaging (basic detection)
-const recentMessages = new Map()
+// 10️⃣ Mass Messaging (PRIVATE message blast only)
+const massMessageTracker = new Map()
 
 // 11️⃣ Filter Bypass (regex based)
 const BYPASS_REGEX = [
@@ -280,11 +275,10 @@ function runModeration(data) {
     violations.push("Derogatory Chat")
 
   if (SOLICITATION.some(w => message.includes(w)))
-    violations.push("Solicitation")
+  violations.push("Solicitation")
 
-  if (LINK_PATTERNS.some(w => message.includes(w)) &&
-      !message.includes("invadedlands"))
-    violations.push("Inappropriate Links")
+if (LINK_REGEX.test(message))
+  violations.push("Inappropriate Links")
 
   if (BYPASS_REGEX.some(r => r.test(rawMessage)))
     violations.push("Filter Bypass")
@@ -293,17 +287,23 @@ function runModeration(data) {
     violations.push("Leaking Private Information")
 
   // Basic mass messaging detection
-  if (!recentMessages.has(username))
-    recentMessages.set(username, [])
+    // ================= MASS MESSAGING (Rule 10 refined) =================
+  if (rawMessage.startsWith("/msg") || rawMessage.startsWith("/w")) {
+    const now = Date.now()
 
-  const history = recentMessages.get(username)
-  history.push(message)
+    if (!massMessageTracker.has(username))
+      massMessageTracker.set(username, [])
 
-  if (history.length > 5) history.shift()
+    const history = massMessageTracker.get(username)
+    history.push({ msg: message, time: now })
 
-  const duplicates = history.filter(m => m === message)
-  if (duplicates.length >= 4)
-    violations.push("Mass Messaging")
+    const recent = history.filter(m => now - m.time < 10000)
+    massMessageTracker.set(username, recent)
+
+    const identical = recent.filter(m => m.msg === message)
+    if (identical.length >= 3)
+      violations.push("Mass Messaging")
+  }
 
   if (violations.length > 0)
     sendModerationAlert(data, violations)
