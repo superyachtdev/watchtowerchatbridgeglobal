@@ -8,19 +8,30 @@ const path = require("path")
 let bot
 let reconnecting = false
 let discordClient
+let alreadyWalking = false
 
 const SERVER_NAME = "Survival"
 
-// ================= MESSAGE MEMORY (SPAM TRACKING) =================
-const messageHistory = new Map() // username -> [{msg, time}]
+// ================= MESSAGE MEMORY =================
+const messageHistory = new Map()
 
-// ================= KEYWORD DATABASE =================
+// ================= KEYWORDS =================
 const SLURS = ["nigger","faggot","tranny","dirty jew","i hate gays"]
 const SUICIDE = ["kys","kill yourself","slit your wrists","hope you get cancer","hope your mom dies"]
 const THREATS = ["i will find you","i will kill you","kill your family"]
 const SEXUAL = ["have sex","porn","nsfw","suck my"]
 const SOLICITATION = ["selling account","buying rank","trading riot","selling robux"]
 const AD_LINK_PATTERNS = ["discord.gg","http://","https://"]
+
+// ================= RANK COLORS =================
+function getRankColor(rank) {
+  const colors = {
+    Immortal: 0x00FFFF,
+    Invaded: 0xF1C40F,
+    Default: 0xAAAAAA
+  }
+  return colors[rank] || 0xAAAAAA
+}
 
 // ================= DISCORD =================
 async function startDiscord() {
@@ -73,9 +84,7 @@ function startBot() {
   })
 }
 
-// ================= WALK =================
-let alreadyWalking = false
-
+// ================= WALK + CLICK =================
 async function walkToNPC() {
   if (alreadyWalking) return
   alreadyWalking = true
@@ -87,21 +96,17 @@ async function walkToNPC() {
   bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
 
   bot.once("goal_reached", async () => {
-    console.log("🎯 Reached Survival NPC location")
-
+    console.log("🎯 Reached NPC location")
     await bot.waitForTicks(20)
 
-    const entity = bot.nearestEntity(e => {
-      if (!e.position) return false
-      const dist = bot.entity.position.distanceTo(e.position)
-      return (
-        dist < 5 &&
-        (e.type === "mob" || e.type === "player")
-      )
-    })
+    const entity = bot.nearestEntity(e =>
+      e.position &&
+      bot.entity.position.distanceTo(e.position) < 5 &&
+      (e.type === "mob" || e.type === "player")
+    )
 
     if (!entity) {
-      console.log("❌ No NPC found — retrying in 5 seconds")
+      console.log("❌ NPC not found, retrying...")
       alreadyWalking = false
       return setTimeout(walkToNPC, 5000)
     }
@@ -125,9 +130,18 @@ function parseChat(message) {
   const chat = message.slice(colon + 1).trim()
   if (!chat) return null
 
-  let username = before.split("]").pop().trim()
+  let rank = "Default"
+  let usernameSection = before
 
-  username = username
+  if (before.includes("[")) {
+    const match = before.match(/\[(.*?)\]/)
+    if (match && match[1]) {
+      rank = match[1]
+    }
+    usernameSection = before.split("]").pop().trim()
+  }
+
+  let username = usernameSection
     .replace(/§[0-9a-fk-or]/gi, "")
     .replace(/&[0-9a-fk-or]/gi, "")
     .trim()
@@ -136,12 +150,13 @@ function parseChat(message) {
 
   return {
     username,
+    rank,
     message: chat.toLowerCase(),
     rawMessage: chat
   }
 }
 
-// ================= MODERATION ENGINE =================
+// ================= MODERATION =================
 function runModeration(data) {
   const now = Date.now()
   const { username, message } = data
@@ -153,69 +168,52 @@ function runModeration(data) {
   const history = messageHistory.get(username)
   history.push({ msg: message, time: now })
 
-  // remove old entries (older than 15s)
   const recent = history.filter(m => now - m.time < 15000)
   messageHistory.set(username, recent)
 
   let violations = []
 
-  // 1️⃣ Spam
-  const identical = recent.filter(m => m.msg === message)
-  if (identical.length >= 3) {
-    violations.push("Spam (3 identical messages in 15s)")
-  }
+  if (recent.filter(m => m.msg === message).length >= 3)
+    violations.push("Spam")
 
-  // 2️⃣ Slurs
-  if (SLURS.some(w => message.includes(w))) {
-    violations.push("Derogatory Chat / Slur")
-  }
+  if (SLURS.some(w => message.includes(w)))
+    violations.push("Derogatory Chat")
 
-  // 3️⃣ Suicide Encouragement
-  if (SUICIDE.some(w => message.includes(w))) {
+  if (SUICIDE.some(w => message.includes(w)))
     violations.push("Suicide Encouragement")
-  }
 
-  // 4️⃣ Threats
-  if (THREATS.some(w => message.includes(w))) {
-    violations.push("Threats")
-  }
+  if (THREATS.some(w => message.includes(w)))
+    violations.push("Threat")
 
-  // 5️⃣ Inappropriate Topics
-  if (SEXUAL.some(w => message.includes(w))) {
+  if (SEXUAL.some(w => message.includes(w)))
     violations.push("Inappropriate Topic")
-  }
 
-  // 6️⃣ Solicitation
-  if (SOLICITATION.some(w => message.includes(w))) {
+  if (SOLICITATION.some(w => message.includes(w)))
     violations.push("Solicitation")
-  }
 
-  // 7️⃣ Advertising / Links
-  if (AD_LINK_PATTERNS.some(w => message.includes(w))) {
-    if (!message.includes("invadedlands.net")) {
-      violations.push("Inappropriate Link / Advertising")
-    }
-  }
+  if (AD_LINK_PATTERNS.some(w => message.includes(w)) &&
+      !message.includes("invadedlands.net"))
+    violations.push("Inappropriate Link")
 
-  if (violations.length > 0) {
+  if (violations.length > 0)
     sendModerationAlert(data, violations)
-  }
 }
 
-// ================= NORMAL CHAT MIRROR =================
+// ================= CLEAN CHAT EMBED (RESTORED DESIGN) =================
 async function sendToDiscord(data) {
   const channel = await discordClient.channels.fetch(process.env.DISCORD_CHANNEL_ID)
   if (!channel) return
 
   const embed = new EmbedBuilder()
-    .setColor(0xAAAAAA)
+    .setColor(getRankColor(data.rank))
     .setAuthor({
       name: data.username,
       iconURL: `https://mc-heads.net/avatar/${encodeURIComponent(data.username)}`
     })
-    .setDescription(`💬 ${data.rawMessage}`)
+    .setDescription(`💬 **Message**\n> ${data.rawMessage}`)
     .addFields(
-      { name: "Server", value: SERVER_NAME, inline: true }
+      { name: "🏷 Rank", value: `\`${data.rank}\``, inline: true },
+      { name: "🌍 Server", value: SERVER_NAME, inline: true }
     )
     .setTimestamp()
 
