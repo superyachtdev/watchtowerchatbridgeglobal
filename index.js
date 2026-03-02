@@ -74,10 +74,46 @@ function startBot() {
 }
 
 // ================= WALK =================
+let alreadyWalking = false
+
 async function walkToNPC() {
+  if (alreadyWalking) return
+  alreadyWalking = true
+
+  console.log("🚶 Walking to Survival NPC...")
+
   const mcData = require("minecraft-data")(bot.version)
   bot.pathfinder.setMovements(new Movements(bot, mcData))
   bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
+
+  bot.once("goal_reached", async () => {
+    console.log("🎯 Reached Survival NPC location")
+
+    await bot.waitForTicks(20)
+
+    const entity = bot.nearestEntity(e => {
+      if (!e.position) return false
+      const dist = bot.entity.position.distanceTo(e.position)
+      return (
+        dist < 5 &&
+        (e.type === "mob" || e.type === "player")
+      )
+    })
+
+    if (!entity) {
+      console.log("❌ No NPC found — retrying in 5 seconds")
+      alreadyWalking = false
+      return setTimeout(walkToNPC, 5000)
+    }
+
+    console.log("🖱 Clicking:", entity.username || entity.name)
+
+    await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
+    await bot.waitForTicks(10)
+    bot.activateEntity(entity)
+
+    console.log("✅ Clicked Survival NPC")
+  })
 }
 
 // ================= CHAT PARSER =================
