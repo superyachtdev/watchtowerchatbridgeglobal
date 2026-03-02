@@ -337,14 +337,18 @@ async function sendModerationAlert(data, violations) {
   if (!channel) return
 
   const embed = new EmbedBuilder()
-    .setColor(0xFF0000)
-    .setTitle("⚠ Potential Rule Violation")
-    .addFields(
-      { name: "Player", value: data.username, inline: true },
-      { name: "Triggered Rules", value: violations.join("\n") },
-      { name: "Message", value: `\`\`\`${data.rawMessage}\`\`\`` }
-    )
-    .setTimestamp()
+  .setColor(0xFF0000)
+  .setTitle("⚠ Potential Rule Violation")
+  .setAuthor({
+    name: data.username,
+    iconURL: `https://mc-heads.net/avatar/${encodeURIComponent(data.username)}`
+  })
+  .addFields(
+    { name: "Server", value: "Survival", inline: true },
+    { name: "Triggered Rules", value: violations.join("\n") },
+    { name: "Message", value: `\`\`\`${data.rawMessage}\`\`\`` }
+  )
+  .setTimestamp()
 
   await channel.send({ embeds: [embed] })
 }
