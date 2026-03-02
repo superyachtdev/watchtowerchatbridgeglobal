@@ -34,7 +34,7 @@ function startHubBot() {
     username: process.env.MC_USERNAME,
     auth: "microsoft",
     version: "1.20.1",
-    profilesFolder: path.join(__dirname, "auth_cache"),
+    profilesFolder: path.join(__dirname, "auth_cache_hub"),
     skipValidation: true,
     disableChatSigning: true
   })
@@ -73,7 +73,7 @@ function startSMPBot() {
     username: process.env.SMP_USERNAME,
     auth: "microsoft",
     version: "1.20.1",
-    profilesFolder: path.join(__dirname, "auth_cache"), // ✅ ADD THIS
+    profilesFolder: path.join(__dirname, "auth_cache_smp"),
     skipValidation: true,
     disableChatSigning: true
   })
