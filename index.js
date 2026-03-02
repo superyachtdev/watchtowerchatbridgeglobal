@@ -16,16 +16,43 @@ const HUB_RANKS = [
   "Trainee","Moderator","Senior Mod","Admin","Manager","Developer","Owner"
 ]
 
-// ================= MESSAGE MEMORY =================
-const messageHistory = new Map()
+// ================= EXPANDED KEYWORDS =================
+const SLURS = [
+  "nigger","nigga","faggot","tranny","kike","dirty jew",
+  "i hate gays","i hate blacks","i hate jews"
+]
 
-// ================= KEYWORDS =================
-const SLURS = ["nigger","faggot","tranny","dirty jew","i hate gays"]
-const SUICIDE = ["kys","kill yourself","slit your wrists","hope you get cancer","hope your mom dies"]
-const THREATS = ["i will find you","i will kill you","kill your family"]
-const SEXUAL = ["have sex","porn","nsfw","suck my"]
-const SOLICITATION = ["selling account","buying rank","trading riot","selling robux"]
-const AD_LINK_PATTERNS = ["discord.gg","http://","https://"]
+const SUICIDE = [
+  "kys","kill yourself","go kill yourself","slit your wrists",
+  "hang yourself","jump off a bridge","hope you die",
+  "hope you get cancer","hope your mom dies"
+]
+
+const THREATS = [
+  "i will find you","i will kill you","kill your family",
+  "i'm going to dox you","i'll pull your ip",
+  "watch your back","i'll beat you up"
+]
+
+const SEXUAL = [
+  "have sex","porn","nsfw","suck my","send nudes",
+  "onlyfans","rule34","deepthroat","cum","dick pic"
+]
+
+const SOLICITATION = [
+  "selling account","buying rank","selling rank",
+  "selling robux","selling vbucks",
+  "buy my account","paypal me","cashapp me"
+]
+
+const TOXICITY = [
+  "retard","stfu","fuck you","fk you","f u",
+  "you suck","get cancer","loser","no life"
+]
+
+const AD_LINK_PATTERNS = [
+  "discord.gg","http://","https://",".net",".org",".ru"
+]
 
 // ================= RANK COLORS =================
 function getRankColor(rank) {
@@ -103,12 +130,10 @@ function startBot() {
   })
 }
 
-// ================= WALK + CLICK =================
+// ================= WALK =================
 async function walkToNPC() {
   if (alreadyWalking) return
   alreadyWalking = true
-
-  console.log("🚶 Walking to Survival NPC...")
 
   const mcData = require("minecraft-data")(bot.version)
   bot.pathfinder.setMovements(new Movements(bot, mcData))
@@ -131,8 +156,6 @@ async function walkToNPC() {
     await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
     await bot.waitForTicks(10)
     bot.activateEntity(entity)
-
-    console.log("✅ Clicked Survival NPC")
   })
 }
 
@@ -153,29 +176,12 @@ function parseChat(message) {
       const match = before.match(/\[(.*?)\]/)
 
       if (match && match[1]) {
-        let bracketRank = match[1].trim()
-
-        // Normalize formatting differences
-        const normalized = bracketRank
-          .replace(/-/g, " ")
-          .toLowerCase()
-
-        // Try to find matching HUB rank (case insensitive)
-        const found = HUB_RANKS.find(r =>
-          r.toLowerCase() === normalized
-        )
-
-        if (found) {
-          detectedRank = found
-        } else {
-          // Custom ranks default to Invaded
-          detectedRank = "Invaded"
-        }
+        const normalized = match[1].trim().replace(/-/g, " ").toLowerCase()
+        const found = HUB_RANKS.find(r => r.toLowerCase() === normalized)
+        detectedRank = found || "Invaded"
       }
 
       usernameSection = before.split("]").pop().trim()
-    } else {
-      detectedRank = "Default"
     }
 
     let username = usernameSection
@@ -200,41 +206,48 @@ function parseChat(message) {
 
 // ================= MODERATION =================
 function runModeration(data) {
-  const now = Date.now()
-  const { username, message } = data
-
-  if (!messageHistory.has(username))
-    messageHistory.set(username, [])
-
-  const history = messageHistory.get(username)
-  history.push({ msg: message, time: now })
-
-  const recent = history.filter(m => now - m.time < 15000)
-  messageHistory.set(username, recent)
-
+  const { message } = data
   let violations = []
 
-  if (recent.filter(m => m.msg === message).length >= 3)
-    violations.push("Spam")
-
+  // Slurs
   if (SLURS.some(w => message.includes(w)))
     violations.push("Derogatory Chat")
 
+  // Suicide Encouragement
   if (SUICIDE.some(w => message.includes(w)))
     violations.push("Suicide Encouragement")
 
+  // Threats
   if (THREATS.some(w => message.includes(w)))
     violations.push("Threat")
 
+  // Sexual / NSFW
   if (SEXUAL.some(w => message.includes(w)))
     violations.push("Inappropriate Topic")
 
+  // Solicitation
   if (SOLICITATION.some(w => message.includes(w)))
     violations.push("Solicitation")
 
+  // Toxicity
+  if (TOXICITY.some(w => message.includes(w)))
+    violations.push("Toxicity")
+
+  // Link advertising
   if (AD_LINK_PATTERNS.some(w => message.includes(w)) &&
-      !message.includes("invadedlands.net"))
+      !message.includes("invadedlands"))
     violations.push("Inappropriate Link")
+
+  // Filter bypass detection (stretched letters)
+  if (/(.)\1{4,}/.test(message))
+    violations.push("Filter Bypass / Stretched Word")
+
+  // Excessive caps
+  if (data.rawMessage.length > 8) {
+    const caps = data.rawMessage.replace(/[^A-Z]/g, "").length
+    if (caps / data.rawMessage.length > 0.7)
+      violations.push("Excessive Caps")
+  }
 
   if (violations.length > 0)
     sendModerationAlert(data, violations)
