@@ -655,11 +655,53 @@ async function updateInflationEmbed() {
   const infl60 = calculateInflation(60)
   const infl24 = calculateInflation(1440)
 
-  function format(val) {
+  function getPast(minutes) {
+    const now = Date.now()
+    const candidates = baltopHistory
+      .filter(entry => now - entry.time >= minutes * 60 * 1000)
+      .sort((a, b) => b.time - a.time)
+    return candidates[0]
+  }
+
+  function formatPercent(val) {
     if (val === null) return "⏳ Collecting..."
     const emoji = val >= 0 ? "📈" : "📉"
     const sign = val >= 0 ? "+" : ""
     return `${emoji} **${sign}${val.toFixed(2)}%**`
+  }
+
+  function formatMoneyChange(minutes, percent) {
+    const past = getPast(minutes)
+    if (!past || percent === null) return ""
+
+    const diff = lastBaltopTotal - past.total
+    const sign = diff >= 0 ? "+" : "-"
+    return `\n${sign}$${Math.abs(diff).toLocaleString()}`
+  }
+
+  function miniBar(percent) {
+    if (percent === null) return ""
+    const filled = Math.min(Math.round(Math.abs(percent) / 2), 10)
+    const empty = 10 - filled
+    const bar = "▰".repeat(filled) + "▱".repeat(empty)
+    return `\n${bar}`
+  }
+
+  // Economy health
+  let economyStatus = "Stable"
+  let color = 0xF1C40F
+
+  if (infl24 !== null) {
+    if (infl24 > 3) {
+      economyStatus = "Overheating 🔥"
+      color = 0xE74C3C
+    } else if (infl24 < -3) {
+      economyStatus = "Deflation ❄️"
+      color = 0x3498DB
+    } else if (infl24 > 0.5) {
+      economyStatus = "Growing 📈"
+      color = 0x2ECC71
+    }
   }
 
   const formattedTotal = lastBaltopTotal
@@ -667,27 +709,37 @@ async function updateInflationEmbed() {
     : "Collecting..."
 
   const embed = new EmbedBuilder()
-    .setColor(0xF1C40F)
-    .setTitle("💰 Survival Economy Monitor")
+    .setColor(color)
+    .setTitle("💰 Survival Economy Dashboard")
     .setDescription(
       `**Server Total Wealth**\n` +
-      `\`\`\`fix\n${formattedTotal}\n\`\`\``
+      `### ${formattedTotal}\n\n` +
+      `**Economy Health:** ${economyStatus}`
     )
     .addFields(
       {
-        name: "⏱ Short Term (30m)",
-        value: format(infl30),
-        inline: true
+        name: "⏱ 30 Minutes",
+        value:
+          formatPercent(infl30) +
+          formatMoneyChange(30, infl30) +
+          miniBar(infl30),
+        inline: false
       },
       {
-        name: "🕐 Mid Term (1h)",
-        value: format(infl60),
-        inline: true
+        name: "🕐 1 Hour",
+        value:
+          formatPercent(infl60) +
+          formatMoneyChange(60, infl60) +
+          miniBar(infl60),
+        inline: false
       },
       {
-        name: "📅 Long Term (24h)",
-        value: format(infl24),
-        inline: true
+        name: "📅 24 Hours",
+        value:
+          formatPercent(infl24) +
+          formatMoneyChange(1440, infl24) +
+          miniBar(infl24),
+        inline: false
       }
     )
     .setFooter({
@@ -695,10 +747,14 @@ async function updateInflationEmbed() {
     })
     .setTimestamp()
 
-  if (!inflationMessage) {
+  try {
+    if (!inflationMessage) {
+      inflationMessage = await channel.send({ embeds: [embed] })
+    } else {
+      await inflationMessage.edit({ embeds: [embed] })
+    }
+  } catch (err) {
     inflationMessage = await channel.send({ embeds: [embed] })
-  } else {
-    await inflationMessage.edit({ embeds: [embed] })
   }
 }
 
