@@ -395,6 +395,7 @@ async function initializeStatusMessage() {
   if (!channel) return
 
   const messages = await channel.messages.fetch({ limit: 10 })
+
   const botMessage = messages.find(
     msg =>
       msg.author.id === discordClient.user.id &&
