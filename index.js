@@ -692,27 +692,7 @@ function calculateCrates(minutes, type) {
   ).length
 }
 
-async function updateInflationEmbed() {
-  if (!discordClient) return
-
-  const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
-  if (!channel) return
-
-  const infl30 = calculateInflation(30)
-  const infl60 = calculateInflation(60)
-  const infl720 = calculateInflation(720)      // 12h
-  const infl1440 = calculateInflation(1440)    // 24h
-  const infl10080 = calculateInflation(10080)  // 7d
-
-  function getPast(minutes) {
-    const now = Date.now()
-    const candidates = baltopHistory
-      .filter(entry => now - entry.time >= minutes * 60 * 1000)
-      .sort((a, b) => b.time - a.time)
-    return candidates[0]
-  }
-
-  async function updateCrateEmbed() {
+async function updateCrateEmbed() {
   if (!discordClient) return
 
   const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
@@ -765,6 +745,28 @@ async function updateInflationEmbed() {
     crateMessage = await channel.send({ embeds: [embed] })
   }
 }
+
+async function updateInflationEmbed() {
+  if (!discordClient) return
+
+  const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
+  if (!channel) return
+
+  const infl30 = calculateInflation(30)
+  const infl60 = calculateInflation(60)
+  const infl720 = calculateInflation(720)      // 12h
+  const infl1440 = calculateInflation(1440)    // 24h
+  const infl10080 = calculateInflation(10080)  // 7d
+
+  function getPast(minutes) {
+    const now = Date.now()
+    const candidates = baltopHistory
+      .filter(entry => now - entry.time >= minutes * 60 * 1000)
+      .sort((a, b) => b.time - a.time)
+    return candidates[0]
+  }
+
+  
 
   function formatTrend(percent) {
     if (percent === null) return "⏳ Collecting..."
