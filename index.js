@@ -19,6 +19,9 @@ let baltopHistory = [] // { time, total }
 let inflationMessage = null
 let baltopInterval = null
 let onlineInterval = null
+const fs = require("fs")
+
+const DATA_FILE = path.join(__dirname, "auth_cache", "inflation_data.json")
 
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
@@ -142,6 +145,35 @@ function getRankColor(rank) {
     Default: 0xAAAAAA
   }
   return colors[rank] || 0xF1C40F
+}
+
+function loadInflationData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, "utf8")
+      const parsed = JSON.parse(raw)
+
+      baltopHistory = parsed.baltopHistory || []
+      lastBaltopTotal = parsed.lastBaltopTotal || null
+
+      console.log("📂 Loaded inflation history:", baltopHistory.length, "entries")
+    }
+  } catch (err) {
+    console.log("Failed to load inflation data:", err.message)
+  }
+}
+
+function saveInflationData() {
+  try {
+    const data = {
+      baltopHistory,
+      lastBaltopTotal
+    }
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
+  } catch (err) {
+    console.log("Failed to save inflation data:", err.message)
+  }
 }
 
 function prepareForMovement() {
@@ -594,14 +626,18 @@ function handleBaltopTotal(total) {
     entry => now - entry.time <= 24 * 60 * 60 * 1000
   )
 
-  updateInflationEmbed()
+  saveInflationData()
+updateInflationEmbed()
 }
 
 function calculateInflation(minutes) {
   const now = Date.now()
-  const past = baltopHistory.find(entry =>
-    now - entry.time >= minutes * 60 * 1000
-  )
+
+  const candidates = baltopHistory
+    .filter(entry => now - entry.time >= minutes * 60 * 1000)
+    .sort((a, b) => b.time - a.time) // closest older entry
+
+  const past = candidates[0]
 
   if (!past || !lastBaltopTotal) return null
 
@@ -620,21 +656,43 @@ async function updateInflationEmbed() {
   const infl24 = calculateInflation(1440)
 
   function format(val) {
-    if (val === null) return "Collecting..."
+    if (val === null) return "⏳ Collecting..."
     const emoji = val >= 0 ? "📈" : "📉"
-    return `${emoji} ${val.toFixed(2)}%`
+    const sign = val >= 0 ? "+" : ""
+    return `${emoji} **${sign}${val.toFixed(2)}%**`
   }
 
+  const formattedTotal = lastBaltopTotal
+    ? `$${lastBaltopTotal.toLocaleString()}`
+    : "Collecting..."
+
   const embed = new EmbedBuilder()
-    .setColor(0x2ACFDB)
-    .setTitle("💰 Survival Inflation Tracker")
-    .setDescription("```yaml\nMetric: Server Total Wealth\n```")
-    .addFields(
-      { name: "30 Minutes", value: format(infl30), inline: true },
-      { name: "1 Hour", value: format(infl60), inline: true },
-      { name: "24 Hours", value: format(infl24), inline: true }
+    .setColor(0xF1C40F)
+    .setTitle("💰 Survival Economy Monitor")
+    .setDescription(
+      `**Server Total Wealth**\n` +
+      `\`\`\`fix\n${formattedTotal}\n\`\`\``
     )
-    .setFooter({ text: "Updates every baltop interval" })
+    .addFields(
+      {
+        name: "⏱ Short Term (30m)",
+        value: format(infl30),
+        inline: true
+      },
+      {
+        name: "🕐 Mid Term (1h)",
+        value: format(infl60),
+        inline: true
+      },
+      {
+        name: "📅 Long Term (24h)",
+        value: format(infl24),
+        inline: true
+      }
+    )
+    .setFooter({
+      text: `Auto-updates every ${Math.floor((parseInt(process.env.BALTOP_INTERVAL_MS || 300000)) / 60000)} minutes`
+    })
     .setTimestamp()
 
   if (!inflationMessage) {
@@ -697,6 +755,7 @@ async function updateStatusEmbed() {
 // ================= START =================
 async function init() {
   await startDiscord()
+  loadInflationData()
   startBot()
 }
 
