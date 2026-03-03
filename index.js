@@ -181,6 +181,10 @@ app.get("/inflation", (req, res) => {
   `)
 })
 
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("🌐 Web dashboard running on port", PORT)
+})
+
 // ================= RANK COLORS =================
 function getRankColor(rank) {
   const colors = {
@@ -999,9 +1003,6 @@ async function init() {
   loadInflationData()
   updateCrateEmbed()
   startBot()
-  app.listen(PORT, () => {
-  console.log("🌐 Web dashboard running on port", PORT)
-})
 }
 
 init()
