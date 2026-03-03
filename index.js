@@ -150,26 +150,115 @@ async function startDiscord() {
   await discordClient.login(process.env.DISCORD_TOKEN)
   console.log("🤖 Discord connected:", discordClient.user.tag)
 
-  // 👇 ADD THIS BLOCK RIGHT HERE
   discordClient.on("messageCreate", async (message) => {
     if (message.author.bot) return
     if (message.author.id !== "159552173070483456") return
     if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return
-    if (!message.content.toLowerCase().startsWith("command:")) return
 
-    const command = message.content.slice(8).trim()
-    if (!command) return
+    const content = message.content.trim()
 
-    console.log("🎮 Executing Minecraft command:", command)
+    // ================= RAW MC COMMAND =================
+    if (content.toLowerCase().startsWith("command:")) {
+      const command = content.slice(8).trim()
+      if (!command) return
 
-    if (bot && bot.player) {
-      bot.chat(command)
-      await message.react("✅")
-    } else {
-      await message.react("❌")
+      console.log("🎮 Executing Minecraft command:", command)
+
+      if (bot && bot.player) {
+        bot.chat(command)
+        await message.react("✅")
+      } else {
+        await message.react("❌")
+      }
+
+      return
+    }
+
+    // ================= GOTO PATHFIND =================
+    if (content.toLowerCase().startsWith("goto:")) {
+      const coordsRaw = content.slice(5).trim()
+      const parts = coordsRaw.split(" ")
+
+      if (parts.length !== 3) {
+        await message.react("❌")
+        return
+      }
+
+      const x = parseInt(parts[0])
+      const y = parseInt(parts[1])
+      const z = parseInt(parts[2])
+
+      if (isNaN(x) || isNaN(y) || isNaN(z)) {
+        await message.react("❌")
+        return
+      }
+
+      console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
+
+      try {
+        const mcData = require("minecraft-data")(bot.version)
+        const movements = new Movements(bot, mcData)
+
+        bot.pathfinder.setMovements(movements)
+        bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z))
+
+        await message.react("🧭")
+      } catch (err) {
+        console.log("Pathfinding error:", err)
+        await message.react("❌")
+      }
+
+      return
+    }
+
+    // ================= FOLLOW PLAYER =================
+    if (content.toLowerCase().startsWith("follow:")) {
+      const targetName = content.slice(7).trim()
+      if (!targetName) {
+        await message.react("❌")
+        return
+      }
+
+      console.log(`👣 Following player: ${targetName}`)
+
+      try {
+        const mcData = require("minecraft-data")(bot.version)
+        const movements = new Movements(bot, mcData)
+
+        bot.pathfinder.setMovements(movements)
+
+        const target = Object.values(bot.players).find(
+          p => p.username.toLowerCase() === targetName.toLowerCase() && p.entity
+        )
+
+        if (!target || !target.entity) {
+          console.log("Player not found.")
+          await message.react("❌")
+          return
+        }
+
+        bot.pathfinder.setGoal(
+          new goals.GoalFollow(target.entity, 2),
+          true
+        )
+
+        await message.react("👣")
+      } catch (err) {
+        console.log("Follow error:", err)
+        await message.react("❌")
+      }
+
+      return
+    }
+
+    // ================= STOP PATHFIND =================
+    if (content.toLowerCase() === "stop") {
+      bot.pathfinder.setGoal(null)
+      console.log("🛑 Pathfinding stopped")
+      await message.react("🛑")
+      return
     }
   })
-  // 👆 END BLOCK
 
   await initializeStatusMessage()
 }
