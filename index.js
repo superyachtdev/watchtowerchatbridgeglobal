@@ -663,11 +663,15 @@ async function updateInflationEmbed() {
     return candidates[0]
   }
 
-  function formatPercent(val) {
-    if (val === null) return "⏳ Collecting..."
-    const emoji = val >= 0 ? "📈" : "📉"
-    const sign = val >= 0 ? "+" : ""
-    return `${emoji} **${sign}${val.toFixed(2)}%**`
+  function formatTrend(percent) {
+    if (percent === null) return "⏳ Collecting..."
+
+    const isInflation = percent >= 0
+    const sign = isInflation ? "+" : "-"
+    const word = isInflation ? "Inflation" : "Deflation"
+    const emoji = isInflation ? "📈" : "📉"
+
+    return `${emoji} **${sign}${Math.abs(percent).toFixed(2)}% ${word}**`
   }
 
   function formatMoneyChange(minutes, percent) {
@@ -676,19 +680,22 @@ async function updateInflationEmbed() {
 
     const diff = lastBaltopTotal - past.total
     const sign = diff >= 0 ? "+" : "-"
+
     return `\n${sign}$${Math.abs(diff).toLocaleString()}`
   }
 
   function miniBar(percent) {
     if (percent === null) return ""
-    const filled = Math.min(Math.round(Math.abs(percent) / 2), 10)
+
+    const magnitude = Math.min(Math.abs(percent), 10)
+    const filled = Math.round(magnitude)
     const empty = 10 - filled
-    const bar = "▰".repeat(filled) + "▱".repeat(empty)
-    return `\n${bar}`
+
+    return `\n${"▰".repeat(filled)}${"▱".repeat(empty)}`
   }
 
-  // Economy health
-  let economyStatus = "Stable"
+  // ===== Economy Health + Dynamic Color =====
+  let economyStatus = "Stable 🟡"
   let color = 0xF1C40F
 
   if (infl24 !== null) {
@@ -699,8 +706,11 @@ async function updateInflationEmbed() {
       economyStatus = "Deflation ❄️"
       color = 0x3498DB
     } else if (infl24 > 0.5) {
-      economyStatus = "Growing 📈"
+      economyStatus = "Growing 🟢"
       color = 0x2ECC71
+    } else if (infl24 < -0.5) {
+      economyStatus = "Cooling 🔵"
+      color = 0x5DADE2
     }
   }
 
@@ -713,14 +723,14 @@ async function updateInflationEmbed() {
     .setTitle("💰 Survival Economy Dashboard")
     .setDescription(
       `**Server Total Wealth**\n` +
-      `### ${formattedTotal}\n\n` +
+      `${formattedTotal}\n\n` +
       `**Economy Health:** ${economyStatus}`
     )
     .addFields(
       {
         name: "⏱ 30 Minutes",
         value:
-          formatPercent(infl30) +
+          formatTrend(infl30) +
           formatMoneyChange(30, infl30) +
           miniBar(infl30),
         inline: false
@@ -728,7 +738,7 @@ async function updateInflationEmbed() {
       {
         name: "🕐 1 Hour",
         value:
-          formatPercent(infl60) +
+          formatTrend(infl60) +
           formatMoneyChange(60, infl60) +
           miniBar(infl60),
         inline: false
@@ -736,7 +746,7 @@ async function updateInflationEmbed() {
       {
         name: "📅 24 Hours",
         value:
-          formatPercent(infl24) +
+          formatTrend(infl24) +
           formatMoneyChange(1440, infl24) +
           miniBar(infl24),
         inline: false
@@ -754,6 +764,7 @@ async function updateInflationEmbed() {
       await inflationMessage.edit({ embeds: [embed] })
     }
   } catch (err) {
+    console.log("Inflation embed missing, regenerating...")
     inflationMessage = await channel.send({ embeds: [embed] })
   }
 }
