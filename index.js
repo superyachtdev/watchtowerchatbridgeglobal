@@ -892,7 +892,7 @@ async function updateInflationEmbed() {
   `**Server Total Wealth**\n` +
   `${formattedTotal}\n\n` +
   `**Economy Health (24h):** ${economyStatus}\n\n` +
-  `📈 [Click here to view full inflation graph](https://watchtowerchatbridgeglobal-production.up.railway.app/inflation)`
+  `📈 [Click here](https://watchtowerchatbridgeglobal-production.up.railway.app/inflation) to view in graph.`
 )
     .addFields(
       {
