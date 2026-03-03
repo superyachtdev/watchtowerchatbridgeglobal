@@ -9,6 +9,8 @@ let bot
 let reconnecting = false
 let discordClient
 let alreadyWalking = false
+let survivalOnline = 0
+let statusMessage = null
 
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
@@ -158,12 +160,26 @@ function startBot() {
   bot.loadPlugin(pathfinder)
 
   bot.once("spawn", () => {
-    setTimeout(() => walkToNPC(), 6000)
-  })
+  setTimeout(() => walkToNPC(), 6000)
 
-  bot.on("message", (jsonMsg) => {
-    const raw = jsonMsg.toString().trim()
-    if (!raw.includes(":")) return
+  // Start polling online count
+  setInterval(() => {
+    bot.chat("/online")
+  }, 5000)
+})
+
+  bot.on("message", async (jsonMsg) => {
+  const raw = jsonMsg.toString().trim()
+
+  // ================= ONLINE COUNT DETECTION =================
+  const onlineMatch = raw.match(/There is \((\d+)\/300\) players online\./)
+  if (onlineMatch) {
+    survivalOnline = parseInt(onlineMatch[1])
+    await updateStatusEmbed()
+    return
+  }
+
+  if (!raw.includes(":")) return
 
     const parsed = parseChat(raw)
     if (!parsed) return
@@ -364,6 +380,27 @@ async function sendModerationAlert(data, violations) {
   .setTimestamp()
 
   await channel.send({ embeds: [embed] })
+}
+
+async function updateStatusEmbed() {
+  const channel = await discordClient.channels.fetch(process.env.STATUS_CHANNEL_ID)
+  if (!channel) return
+
+  const embed = new EmbedBuilder()
+    .setColor(0xF1C40F) // nice gold
+    .setTitle("🌍 Survival Server Status")
+    .addFields(
+      { name: "Server", value: "Survival", inline: true },
+      { name: "Online Players", value: `${survivalOnline}/300`, inline: true },
+      { name: "Status", value: "🟢 Online" }
+    )
+    .setTimestamp()
+
+  if (!statusMessage) {
+    statusMessage = await channel.send({ embeds: [embed] })
+  } else {
+    await statusMessage.edit({ embeds: [embed] })
+  }
 }
 
 // ================= START =================
