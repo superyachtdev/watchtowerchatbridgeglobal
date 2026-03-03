@@ -142,12 +142,34 @@ async function startDiscord() {
   discordClient = new Client({
     intents: [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent
     ]
   })
 
   await discordClient.login(process.env.DISCORD_TOKEN)
   console.log("🤖 Discord connected:", discordClient.user.tag)
+
+  // 👇 ADD THIS BLOCK RIGHT HERE
+  discordClient.on("messageCreate", async (message) => {
+    if (message.author.bot) return
+    if (message.author.id !== "159552173070483456") return
+    if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return
+    if (!message.content.toLowerCase().startsWith("command:")) return
+
+    const command = message.content.slice(8).trim()
+    if (!command) return
+
+    console.log("🎮 Executing Minecraft command:", command)
+
+    if (bot && bot.player) {
+      bot.chat(command)
+      await message.react("✅")
+    } else {
+      await message.react("❌")
+    }
+  })
+  // 👆 END BLOCK
 
   await initializeStatusMessage()
 }
