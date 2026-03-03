@@ -318,17 +318,6 @@ function startBot() {
   }, 5000)
 })
 
-bot.on("physicTick", () => {
-  if (!bot.pathfinder.isMoving()) return
-
-  const vel = bot.entity.velocity
-  const speed = Math.abs(vel.x) + Math.abs(vel.z)
-
-  if (speed < 0.01) {
-    bot.pathfinder.stop()
-  }
-})
-
   bot.on("message", async (jsonMsg) => {
   const raw = jsonMsg.toString().trim()
 
@@ -366,12 +355,19 @@ async function walkToNPC() {
 
   console.log("🚶 Walking to Survival NPC...")
 
-  const mcData = require("minecraft-data")(bot.version)
-  const defaultMove = new Movements(bot, mcData)
-  bot.pathfinder.setMovements(defaultMove)
+  bot.pathfinder.setMovements(defaultMovements)
 
-  const goal = new goals.GoalBlock(63, 94, 695)
+  const goal = new goals.GoalNear(63, 94, 695, 2)
   bot.pathfinder.setGoal(goal)
+
+  setTimeout(() => {
+    if (bot.pathfinder.isMoving()) {
+      console.log("⚠ Path taking too long — retrying")
+      bot.pathfinder.setGoal(null)
+      alreadyWalking = false
+      walkToNPC()
+    }
+  }, 15000)
 
   bot.once("goal_reached", async () => {
     console.log("📍 Reached Survival NPC area")
@@ -380,7 +376,7 @@ async function walkToNPC() {
 
     const entity = bot.nearestEntity(e =>
       e.position &&
-      bot.entity.position.distanceTo(e.position) < 5 &&
+      bot.entity.position.distanceTo(e.position) < 7 &&
       (e.type === "mob" || e.type === "player")
     )
 
@@ -390,11 +386,9 @@ async function walkToNPC() {
       return setTimeout(walkToNPC, 5000)
     }
 
-    console.log("👀 Looking at NPC...")
     await bot.lookAt(entity.position.offset(0, entity.height, 0), true)
     await bot.waitForTicks(10)
 
-    console.log("🖱 Clicking NPC...")
     bot.activateEntity(entity)
 
     console.log("✅ Clicked Survival NPC")
