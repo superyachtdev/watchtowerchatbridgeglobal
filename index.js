@@ -708,7 +708,7 @@ async function updateCrateEmbed() {
 
   const embed = new EmbedBuilder()
     .setColor(0x9B59B6)
-    .setTitle("🎁 Survival Crate Purchase Tracker")
+    .setTitle("Crate Tracker")
     .addFields(
       {
         name: "⏱ Last 30 Minutes",
