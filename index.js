@@ -12,6 +12,7 @@ let alreadyWalking = false
 let survivalOnline = 0
 let statusMessage = null
 let updatingEmbed = false
+let defaultMovements 
 
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
@@ -137,20 +138,6 @@ function getRankColor(rank) {
   return colors[rank] || 0xF1C40F
 }
 
-function createSmartMovements() {
-  const mcData = require("minecraft-data")(bot.version)
-  const movements = new Movements(bot, mcData)
-
-  movements.allow1by1towers = false
-  movements.canDig = false
-  movements.allowParkour = true
-  movements.allowSprinting = true
-  movements.canOpenDoors = true
-
-  movements.scafoldingBlocks = []
-
-  return movements
-}
 
 // ================= DISCORD =================
 async function startDiscord() {
@@ -190,77 +177,82 @@ async function startDiscord() {
     }
 
     // ================= GOTO PATHFIND =================
-    if (content.toLowerCase().startsWith("goto:")) {
-      const coordsRaw = content.slice(5).trim()
-      const parts = coordsRaw.split(" ")
+if (content.toLowerCase().startsWith("goto:")) {
+  const coordsRaw = content.slice(5).trim()
+  const parts = coordsRaw.split(" ")
 
-      if (parts.length !== 3) {
-        await message.react("❌")
-        return
-      }
+  if (parts.length !== 3) {
+    await message.react("❌")
+    return
+  }
 
-      const x = parseInt(parts[0])
-      const y = parseInt(parts[1])
-      const z = parseInt(parts[2])
+  const x = parseInt(parts[0])
+  const y = parseInt(parts[1])
+  const z = parseInt(parts[2])
 
-      if (isNaN(x) || isNaN(y) || isNaN(z)) {
-        await message.react("❌")
-        return
-      }
+  if (isNaN(x) || isNaN(y) || isNaN(z)) {
+    await message.react("❌")
+    return
+  }
 
-      console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
+  console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
 
-      try {
-        bot.pathfinder.setMovements(createSmartMovements())
-bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z), true)
-        bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z))
+  try {
+    bot.pathfinder.setGoal(null) // clear old goal first
 
-        await message.react("🧭")
-      } catch (err) {
-        console.log("Pathfinding error:", err)
-        await message.react("❌")
-      }
+    bot.pathfinder.setGoal(
+      new goals.GoalNear(x, y, z, 1),
+      true
+    )
 
-      return
-    }
+    await message.react("🧭")
+  } catch (err) {
+    console.log("Pathfinding error:", err)
+    await message.react("❌")
+  }
 
-    // ================= FOLLOW PLAYER =================
-    if (content.toLowerCase().startsWith("follow:")) {
-      const targetName = content.slice(7).trim()
-      if (!targetName) {
-        await message.react("❌")
-        return
-      }
+  return
+}
 
-      console.log(`👣 Following player: ${targetName}`)
+   // ================= FOLLOW PLAYER =================
+if (content.toLowerCase().startsWith("follow:")) {
+  const targetName = content.slice(7).trim()
+  if (!targetName) {
+    await message.react("❌")
+    return
+  }
 
-      try {
-        bot.pathfinder.setMovements(createSmartMovements())
-bot.pathfinder.setGoal(new goals.GoalFollow(target.entity, 2), true)
+  const target = Object.values(bot.players).find(
+    p =>
+      p.username &&
+      p.username.toLowerCase() === targetName.toLowerCase() &&
+      p.entity
+  )
 
-        const target = Object.values(bot.players).find(
-          p => p.username.toLowerCase() === targetName.toLowerCase() && p.entity
-        )
+  if (!target || !target.entity) {
+    console.log("Player not found.")
+    await message.react("❌")
+    return
+  }
 
-        if (!target || !target.entity) {
-          console.log("Player not found.")
-          await message.react("❌")
-          return
-        }
+  console.log(`👣 Following player: ${target.username}`)
 
-        bot.pathfinder.setGoal(
-          new goals.GoalFollow(target.entity, 2),
-          true
-        )
+  try {
+    bot.pathfinder.setGoal(null)
 
-        await message.react("👣")
-      } catch (err) {
-        console.log("Follow error:", err)
-        await message.react("❌")
-      }
+    bot.pathfinder.setGoal(
+      new goals.GoalFollow(target.entity, 3),
+      true
+    )
 
-      return
-    }
+    await message.react("👣")
+  } catch (err) {
+    console.log("Follow error:", err)
+    await message.react("❌")
+  }
+
+  return
+}
 
     // ================= STOP PATHFIND =================
     if (content.toLowerCase() === "stop") {
@@ -289,6 +281,21 @@ function startBot() {
 
   bot.loadPlugin(pathfinder)
 
+const mcData = require("minecraft-data")(bot.version)
+defaultMovements = new Movements(bot, mcData)
+
+defaultMovements.allow1by1towers = false
+defaultMovements.canDig = false
+defaultMovements.allowParkour = true
+defaultMovements.allowSprinting = true
+defaultMovements.canOpenDoors = true
+
+bot.pathfinder.setMovements(defaultMovements)
+
+// Stabilizers
+bot.pathfinder.thinkTimeout = 10000
+bot.pathfinder.tickTimeout = 40
+
   bot.once("spawn", () => {
   setTimeout(() => walkToNPC(), 6000)
 
@@ -296,6 +303,17 @@ function startBot() {
   setInterval(() => {
     bot.chat("/online")
   }, 5000)
+})
+
+bot.on("physicTick", () => {
+  if (!bot.pathfinder.isMoving()) return
+
+  const vel = bot.entity.velocity
+  const speed = Math.abs(vel.x) + Math.abs(vel.z)
+
+  if (speed < 0.01) {
+    bot.pathfinder.stop()
+  }
 })
 
   bot.on("message", async (jsonMsg) => {
