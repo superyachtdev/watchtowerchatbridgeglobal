@@ -4,6 +4,9 @@ const mineflayer = require("mineflayer")
 const { pathfinder, Movements, goals } = require("mineflayer-pathfinder")
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js")
 const path = require("path")
+const express = require("express")
+const app = express()
+const PORT = process.env.PORT || 3000
 
 let bot
 let reconnecting = false
@@ -128,6 +131,55 @@ const PRIVATE_INFO_REGEX = [
   /instagram\.com\//i,
   /snapchat\.com\//i
 ]
+
+app.get("/inflation", (req, res) => {
+  const history = baltopHistory.map(entry => ({
+    time: entry.time,
+    total: entry.total
+  }))
+
+  res.send(`
+    <html>
+      <head>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      </head>
+      <body style="background:#111;color:white;font-family:sans-serif;">
+        <h2>Survival Inflation Graph</h2>
+        <canvas id="chart"></canvas>
+
+        <script>
+          const data = ${JSON.stringify(history)}
+
+          const ctx = document.getElementById("chart").getContext("2d")
+
+          new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: data.map(d => new Date(d.time).toLocaleTimeString()),
+              datasets: [{
+                label: "Server Total Wealth",
+                data: data.map(d => d.total),
+                borderColor: "#F1C40F",
+                backgroundColor: "rgba(241,196,15,0.1)",
+                tension: 0.2
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                x: { ticks: { color: "white" }},
+                y: { ticks: { color: "white" }}
+              },
+              plugins: {
+                legend: { labels: { color: "white" }}
+              }
+            }
+          })
+        </script>
+      </body>
+    </html>
+  `)
+})
 
 // ================= RANK COLORS =================
 function getRankColor(rank) {
@@ -827,10 +879,11 @@ async function updateInflationEmbed() {
     .setColor(color)
     .setTitle("💰 Survival Economy Dashboard")
     .setDescription(
-      `**Server Total Wealth**\n` +
-      `${formattedTotal}\n\n` +
-      `**Economy Health (24h):** ${economyStatus}`
-    )
+  `**Server Total Wealth**\n` +
+  `${formattedTotal}\n\n` +
+  `**Economy Health (24h):** ${economyStatus}\n\n` +
+  `📈 [Click here to view full inflation graph](https://watchtowerchatbridgeglobal-production.up.railway.app/inflation)`
+)
     .addFields(
       {
         name: "⏱ 30 Minutes",
@@ -946,6 +999,9 @@ async function init() {
   loadInflationData()
   updateCrateEmbed()
   startBot()
+  app.listen(PORT, () => {
+  console.log("🌐 Web dashboard running on port", PORT)
+})
 }
 
 init()
