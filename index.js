@@ -300,7 +300,7 @@ function startBot() {
   bot.pathfinder.tickTimeout = 40
 
   // Anti-stuck protection
-  bot.on("physicTick", () => {
+  bot.on("physicsTick", () => {
     if (!bot.pathfinder.isMoving()) return
 
     const vel = bot.entity.velocity
