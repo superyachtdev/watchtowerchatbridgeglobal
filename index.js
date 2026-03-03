@@ -653,7 +653,9 @@ async function updateInflationEmbed() {
 
   const infl30 = calculateInflation(30)
   const infl60 = calculateInflation(60)
-  const infl24 = calculateInflation(1440)
+  const infl720 = calculateInflation(720)      // 12h
+  const infl1440 = calculateInflation(1440)    // 24h
+  const infl10080 = calculateInflation(10080)  // 7d
 
   function getPast(minutes) {
     const now = Date.now()
@@ -694,21 +696,21 @@ async function updateInflationEmbed() {
     return `\n${"▰".repeat(filled)}${"▱".repeat(empty)}`
   }
 
-  // ===== Economy Health + Dynamic Color =====
+  // ===== Economy Health (Based on 24h) =====
   let economyStatus = "Stable 🟡"
   let color = 0xF1C40F
 
-  if (infl24 !== null) {
-    if (infl24 > 3) {
+  if (infl1440 !== null) {
+    if (infl1440 > 3) {
       economyStatus = "Overheating 🔥"
       color = 0xE74C3C
-    } else if (infl24 < -3) {
+    } else if (infl1440 < -3) {
       economyStatus = "Deflation ❄️"
       color = 0x3498DB
-    } else if (infl24 > 0.5) {
+    } else if (infl1440 > 0.5) {
       economyStatus = "Growing 🟢"
       color = 0x2ECC71
-    } else if (infl24 < -0.5) {
+    } else if (infl1440 < -0.5) {
       economyStatus = "Cooling 🔵"
       color = 0x5DADE2
     }
@@ -724,7 +726,7 @@ async function updateInflationEmbed() {
     .setDescription(
       `**Server Total Wealth**\n` +
       `${formattedTotal}\n\n` +
-      `**Economy Health:** ${economyStatus}`
+      `**Economy Health (24h):** ${economyStatus}`
     )
     .addFields(
       {
@@ -744,11 +746,27 @@ async function updateInflationEmbed() {
         inline: false
       },
       {
+        name: "🕛 12 Hours",
+        value:
+          formatTrend(infl720) +
+          formatMoneyChange(720, infl720) +
+          miniBar(infl720),
+        inline: false
+      },
+      {
         name: "📅 24 Hours",
         value:
-          formatTrend(infl24) +
-          formatMoneyChange(1440, infl24) +
-          miniBar(infl24),
+          formatTrend(infl1440) +
+          formatMoneyChange(1440, infl1440) +
+          miniBar(infl1440),
+        inline: false
+      },
+      {
+        name: "🗓 7 Days",
+        value:
+          formatTrend(infl10080) +
+          formatMoneyChange(10080, infl10080) +
+          miniBar(infl10080),
         inline: false
       }
     )
