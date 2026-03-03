@@ -138,6 +138,25 @@ function getRankColor(rank) {
   return colors[rank] || 0xF1C40F
 }
 
+function prepareForMovement() {
+  if (!bot || !bot.player) return false
+
+  bot.clearControlStates()
+  bot.pathfinder.setGoal(null)
+
+  const mcData = require("minecraft-data")(bot.version)
+  const movements = new Movements(bot, mcData)
+
+  movements.allow1by1towers = false
+  movements.canDig = false
+  movements.allowParkour = true
+  movements.allowSprinting = true
+  movements.canOpenDoors = true
+
+  bot.pathfinder.setMovements(movements)
+
+  return true
+}
 
 // ================= DISCORD =================
 async function startDiscord() {
@@ -195,22 +214,21 @@ if (content.toLowerCase().startsWith("goto:")) {
     return
   }
 
-  console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
-
-  try {
-    bot.pathfinder.setGoal(null) // clear old goal first
-
-    bot.pathfinder.setGoal(
-      new goals.GoalNear(x, y, z, 1),
-      true
-    )
-
-    await message.react("🧭")
-  } catch (err) {
-    console.log("Pathfinding error:", err)
+  if (!prepareForMovement()) {
     await message.react("❌")
+    return
   }
 
+  console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
+
+  setTimeout(() => {
+    bot.pathfinder.setGoal(
+      new goals.GoalNear(x, y, z, 1),
+      false
+    )
+  }, 100)
+
+  await message.react("🧭")
   return
 }
 
@@ -230,37 +248,35 @@ if (content.toLowerCase().startsWith("follow:")) {
   )
 
   if (!target || !target.entity) {
-    console.log("Player not found.")
+    await message.react("❌")
+    return
+  }
+
+  if (!prepareForMovement()) {
     await message.react("❌")
     return
   }
 
   console.log(`👣 Following player: ${target.username}`)
 
-  try {
-    bot.pathfinder.setGoal(null)
-
+  setTimeout(() => {
     bot.pathfinder.setGoal(
       new goals.GoalFollow(target.entity, 3),
       true
     )
+  }, 100)
 
-    await message.react("👣")
-  } catch (err) {
-    console.log("Follow error:", err)
-    await message.react("❌")
-  }
-
+  await message.react("👣")
   return
 }
 
     // ================= STOP PATHFIND =================
     if (content.toLowerCase() === "stop") {
-      bot.pathfinder.setGoal(null)
-      console.log("🛑 Pathfinding stopped")
-      await message.react("🛑")
-      return
-    }
+  bot.pathfinder.setGoal(null)
+  bot.clearControlStates()
+  await message.react("🛑")
+  return
+}
   })
 
   await initializeStatusMessage()
