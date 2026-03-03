@@ -281,25 +281,38 @@ function startBot() {
 
   bot.loadPlugin(pathfinder)
 
-const mcData = require("minecraft-data")(bot.version)
-defaultMovements = new Movements(bot, mcData)
-
-defaultMovements.allow1by1towers = false
-defaultMovements.canDig = false
-defaultMovements.allowParkour = true
-defaultMovements.allowSprinting = true
-defaultMovements.canOpenDoors = true
-
-bot.pathfinder.setMovements(defaultMovements)
-
-// Stabilizers
-bot.pathfinder.thinkTimeout = 10000
-bot.pathfinder.tickTimeout = 40
-
   bot.once("spawn", () => {
+  console.log("🤖 Bot spawned — initializing pathfinder")
+
+  const mcData = require("minecraft-data")(bot.version)
+
+  defaultMovements = new Movements(bot, mcData)
+  defaultMovements.allow1by1towers = false
+  defaultMovements.canDig = false
+  defaultMovements.allowParkour = true
+  defaultMovements.allowSprinting = true
+  defaultMovements.canOpenDoors = true
+
+  bot.pathfinder.setMovements(defaultMovements)
+
+  // Stabilizers
+  bot.pathfinder.thinkTimeout = 10000
+  bot.pathfinder.tickTimeout = 40
+
+  // Anti-stuck protection
+  bot.on("physicTick", () => {
+    if (!bot.pathfinder.isMoving()) return
+
+    const vel = bot.entity.velocity
+    const speed = Math.abs(vel.x) + Math.abs(vel.z)
+
+    if (speed < 0.01) {
+      bot.pathfinder.stop()
+    }
+  })
+
   setTimeout(() => walkToNPC(), 6000)
 
-  // Start polling online count
   setInterval(() => {
     bot.chat("/online")
   }, 5000)
