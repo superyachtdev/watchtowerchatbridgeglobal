@@ -13,6 +13,12 @@ let survivalOnline = 0
 let statusMessage = null
 let updatingEmbed = false
 let defaultMovements 
+// ================= INFLATION TRACKER =================
+let lastBaltopTotal = null
+let baltopHistory = [] // { time, total }
+let inflationMessage = null
+let baltopInterval = null
+let onlineInterval = null
 
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
@@ -317,16 +323,40 @@ function startBot() {
 
   // Anti-stuck protection
 
+  if (baltopInterval) clearInterval(baltopInterval)
+
+baltopInterval = setInterval(() => {
+  if (bot && bot.player) {
+    bot.chat("/baltop")
+  }
+}, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
+
   setTimeout(() => walkToNPC(), 6000)
 
-  setInterval(() => {
+  if (onlineInterval) clearInterval(onlineInterval)
+
+onlineInterval = setInterval(() => {
+  if (bot && bot.player) {
     bot.chat("/online")
-  }, 5000)
+  }
+}, 5000)
 })
 
   bot.on("message", async (jsonMsg) => {
   const raw = jsonMsg.toString().trim()
 
+    const baltopMatch = raw.match(/Server Total:\s*\$?([\d,]+)/i)
+
+if (baltopMatch) {
+  const cleaned = baltopMatch[1].replace(/,/g, "")
+  const total = parseFloat(cleaned)
+
+  if (!isNaN(total)) {
+    handleBaltopTotal(total)
+  }
+
+  return
+}
   // ================= ONLINE COUNT DETECTION =================
   const onlineMatch = raw.match(/There is \((\d+)\/300\) players online\./)
   if (onlineMatch) {
@@ -546,6 +576,71 @@ async function initializeStatusMessage() {
   if (botMessage) {
     statusMessage = botMessage
     console.log("♻ Reusing existing Survival status embed")
+  }
+}
+
+function handleBaltopTotal(total) {
+  const now = Date.now()
+
+  lastBaltopTotal = total
+
+  baltopHistory.push({
+    time: now,
+    total
+  })
+
+  // Keep only last 24h
+  baltopHistory = baltopHistory.filter(
+    entry => now - entry.time <= 24 * 60 * 60 * 1000
+  )
+
+  updateInflationEmbed()
+}
+
+function calculateInflation(minutes) {
+  const now = Date.now()
+  const past = baltopHistory.find(entry =>
+    now - entry.time >= minutes * 60 * 1000
+  )
+
+  if (!past || !lastBaltopTotal) return null
+
+  const change = ((lastBaltopTotal - past.total) / past.total) * 100
+  return change
+}
+
+async function updateInflationEmbed() {
+  if (!discordClient) return
+
+  const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
+  if (!channel) return
+
+  const infl30 = calculateInflation(30)
+  const infl60 = calculateInflation(60)
+  const infl24 = calculateInflation(1440)
+
+  function format(val) {
+    if (val === null) return "Collecting..."
+    const emoji = val >= 0 ? "📈" : "📉"
+    return `${emoji} ${val.toFixed(2)}%`
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ACFDB)
+    .setTitle("💰 Survival Inflation Tracker")
+    .setDescription("```yaml\nMetric: Server Total Wealth\n```")
+    .addFields(
+      { name: "30 Minutes", value: format(infl30), inline: true },
+      { name: "1 Hour", value: format(infl60), inline: true },
+      { name: "24 Hours", value: format(infl24), inline: true }
+    )
+    .setFooter({ text: "Updates every baltop interval" })
+    .setTimestamp()
+
+  if (!inflationMessage) {
+    inflationMessage = await channel.send({ embeds: [embed] })
+  } else {
+    await inflationMessage.edit({ embeds: [embed] })
   }
 }
 
