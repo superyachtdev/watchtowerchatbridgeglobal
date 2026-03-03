@@ -11,6 +11,7 @@ let discordClient
 let alreadyWalking = false
 let survivalOnline = 0
 let statusMessage = null
+let updatingEmbed = false
 
 // ================= VALID HUB RANKS =================
 const HUB_RANKS = [
@@ -139,9 +140,16 @@ function getRankColor(rank) {
 // ================= DISCORD =================
 async function startDiscord() {
   discordClient = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages
+    ]
   })
+
   await discordClient.login(process.env.DISCORD_TOKEN)
+  console.log("🤖 Discord connected:", discordClient.user.tag)
+
+  await initializeStatusMessage()
 }
 
 // ================= BOT =================
@@ -382,20 +390,43 @@ async function sendModerationAlert(data, violations) {
   await channel.send({ embeds: [embed] })
 }
 
-async function updateStatusEmbed() {
+async function initializeStatusMessage() {
   const channel = await discordClient.channels.fetch(process.env.STATUS_CHANNEL_ID)
   if (!channel) return
 
-  // Create progress bar
+  const messages = await channel.messages.fetch({ limit: 10 })
+  const botMessage = messages.find(
+    msg =>
+      msg.author.id === discordClient.user.id &&
+      msg.embeds.length > 0 &&
+      msg.embeds[0].title?.includes("Survival")
+  )
+
+  if (botMessage) {
+    statusMessage = botMessage
+    console.log("♻ Reusing existing Survival status embed")
+  }
+}
+
+async function updateStatusEmbed() {
+  if (updatingEmbed) return
+  updatingEmbed = true
+
+  const channel = await discordClient.channels.fetch(process.env.STATUS_CHANNEL_ID)
+  if (!channel) {
+    updatingEmbed = false
+    return
+  }
+
   const maxPlayers = 300
-  const percent = Math.min((survivalOnline / maxPlayers), 1)
+  const percent = Math.min(survivalOnline / maxPlayers, 1)
+
   const filledBars = Math.round(percent * 10)
   const emptyBars = 10 - filledBars
-
   const progressBar = "🟨".repeat(filledBars) + "⬛".repeat(emptyBars)
 
   const embed = new EmbedBuilder()
-    .setColor(0xF1C40F) // gold
+    .setColor(0xF1C40F)
     .setTitle("🌍 Survival")
     .setDescription("```yaml\nSTATUS: Online\n```")
     .addFields(
@@ -413,11 +444,18 @@ async function updateStatusEmbed() {
     .setFooter({ text: "Live updating every 5 seconds" })
     .setTimestamp()
 
-  if (!statusMessage) {
+  try {
+    if (!statusMessage) {
+      statusMessage = await channel.send({ embeds: [embed] })
+    } else {
+      await statusMessage.edit({ embeds: [embed] })
+    }
+  } catch (err) {
+    console.log("Embed edit failed, sending new one...")
     statusMessage = await channel.send({ embeds: [embed] })
-  } else {
-    await statusMessage.edit({ embeds: [embed] })
   }
+
+  updatingEmbed = false
 }
 
 // ================= START =================
