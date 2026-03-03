@@ -132,6 +132,10 @@ const PRIVATE_INFO_REGEX = [
   /snapchat\.com\//i
 ]
 
+app.get("/", (req, res) => {
+  res.send("Watchtower Inflation Dashboard Running")
+})
+
 app.get("/inflation", (req, res) => {
   const history = baltopHistory.map(entry => ({
     time: entry.time,
@@ -180,6 +184,8 @@ app.get("/inflation", (req, res) => {
     </html>
   `)
 })
+
+
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log("🌐 Web dashboard running on port", PORT)
