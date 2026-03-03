@@ -16,6 +16,10 @@ let defaultMovements
 // ================= INFLATION TRACKER =================
 let lastBaltopTotal = null
 let baltopHistory = [] // { time, total }
+// ================= CRATE TRACKER =================
+// ================= CRATE TRACKER =================
+let crateHistory = [] // { time, type }
+let crateMessage = null
 let inflationMessage = null
 let baltopInterval = null
 let onlineInterval = null
@@ -155,11 +159,13 @@ function loadInflationData() {
 
       baltopHistory = parsed.baltopHistory || []
       lastBaltopTotal = parsed.lastBaltopTotal || null
+      crateHistory = parsed.crateHistory || []
 
       console.log("📂 Loaded inflation history:", baltopHistory.length, "entries")
+      console.log("📦 Loaded crate history:", crateHistory.length, "entries")
     }
   } catch (err) {
-    console.log("Failed to load inflation data:", err.message)
+    console.log("Failed to load data:", err.message)
   }
 }
 
@@ -167,12 +173,13 @@ function saveInflationData() {
   try {
     const data = {
       baltopHistory,
-      lastBaltopTotal
+      lastBaltopTotal,
+      crateHistory
     }
 
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
   } catch (err) {
-    console.log("Failed to save inflation data:", err.message)
+    console.log("Failed to save data:", err.message)
   }
 }
 
@@ -376,6 +383,37 @@ onlineInterval = setInterval(() => {
 
   bot.on("message", async (jsonMsg) => {
   const raw = jsonMsg.toString().trim()
+  // ================= CRATE PURCHASE DETECTION =================
+if (raw.includes("[Broadcast]") && raw.toUpperCase().includes("CRATE KEY")) {
+  const now = Date.now()
+
+  const match = raw.toUpperCase().match(/(\d+)X\s+([A-Z]+)\s+CRATE KEY/)
+  if (match) {
+    const amount = parseInt(match[1])
+    const typeRaw = match[2]
+
+    let type = null
+    if (typeRaw.includes("MARCH")) type = "March"
+    if (typeRaw.includes("INVADED")) type = "Invaded"
+
+    if (type) {
+      for (let i = 0; i < amount; i++) {
+        crateHistory.push({
+          time: now,
+          type
+        })
+      }
+
+      // Keep only 24h
+      crateHistory = crateHistory.filter(
+        entry => now - entry.time <= 24 * 60 * 60 * 1000
+      )
+
+      saveInflationData()
+      updateCrateEmbed()
+    }
+  }
+}
 
     const baltopMatch = raw.match(/Server Total:\s*\$?([\d,]+)/i)
 
@@ -645,6 +683,15 @@ function calculateInflation(minutes) {
   return change
 }
 
+function calculateCrates(minutes, type) {
+  const now = Date.now()
+
+  return crateHistory.filter(entry =>
+    entry.type === type &&
+    now - entry.time <= minutes * 60 * 1000
+  ).length
+}
+
 async function updateInflationEmbed() {
   if (!discordClient) return
 
@@ -664,6 +711,60 @@ async function updateInflationEmbed() {
       .sort((a, b) => b.time - a.time)
     return candidates[0]
   }
+
+  async function updateCrateEmbed() {
+  if (!discordClient) return
+
+  const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
+  if (!channel) return
+
+  const invaded30 = calculateCrates(30, "Invaded")
+  const invaded60 = calculateCrates(60, "Invaded")
+  const invaded1440 = calculateCrates(1440, "Invaded")
+
+  const march30 = calculateCrates(30, "March")
+  const march60 = calculateCrates(60, "March")
+  const march1440 = calculateCrates(1440, "March")
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9B59B6)
+    .setTitle("🎁 Survival Crate Purchase Tracker")
+    .addFields(
+      {
+        name: "⏱ Last 30 Minutes",
+        value:
+          `Invaded: **${invaded30}**\n` +
+          `March: **${march30}**`,
+        inline: false
+      },
+      {
+        name: "🕐 Last 1 Hour",
+        value:
+          `Invaded: **${invaded60}**\n` +
+          `March: **${march60}**`,
+        inline: false
+      },
+      {
+        name: "📅 Last 24 Hours",
+        value:
+          `Invaded: **${invaded1440}**\n` +
+          `March: **${march1440}**`,
+        inline: false
+      }
+    )
+    .setFooter({ text: "Updates live on crate purchase" })
+    .setTimestamp()
+
+  try {
+    if (!crateMessage) {
+      crateMessage = await channel.send({ embeds: [embed] })
+    } else {
+      await crateMessage.edit({ embeds: [embed] })
+    }
+  } catch (err) {
+    crateMessage = await channel.send({ embeds: [embed] })
+  }
+}
 
   function formatTrend(percent) {
     if (percent === null) return "⏳ Collecting..."
@@ -841,6 +942,7 @@ async function updateStatusEmbed() {
 async function init() {
   await startDiscord()
   loadInflationData()
+  updateCrateEmbed()
   startBot()
 }
 
