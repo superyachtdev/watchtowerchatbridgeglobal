@@ -137,6 +137,21 @@ function getRankColor(rank) {
   return colors[rank] || 0xF1C40F
 }
 
+function createSmartMovements() {
+  const mcData = require("minecraft-data")(bot.version)
+  const movements = new Movements(bot, mcData)
+
+  movements.allow1by1towers = false
+  movements.canDig = false
+  movements.allowParkour = true
+  movements.allowSprinting = true
+  movements.canOpenDoors = true
+
+  movements.scafoldingBlocks = []
+
+  return movements
+}
+
 // ================= DISCORD =================
 async function startDiscord() {
   discordClient = new Client({
@@ -196,10 +211,8 @@ async function startDiscord() {
       console.log(`🧭 Pathfinding to ${x} ${y} ${z}`)
 
       try {
-        const mcData = require("minecraft-data")(bot.version)
-        const movements = new Movements(bot, mcData)
-
-        bot.pathfinder.setMovements(movements)
+        bot.pathfinder.setMovements(createSmartMovements())
+bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z), true)
         bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z))
 
         await message.react("🧭")
@@ -222,10 +235,8 @@ async function startDiscord() {
       console.log(`👣 Following player: ${targetName}`)
 
       try {
-        const mcData = require("minecraft-data")(bot.version)
-        const movements = new Movements(bot, mcData)
-
-        bot.pathfinder.setMovements(movements)
+        bot.pathfinder.setMovements(createSmartMovements())
+bot.pathfinder.setGoal(new goals.GoalFollow(target.entity, 2), true)
 
         const target = Object.values(bot.players).find(
           p => p.username.toLowerCase() === targetName.toLowerCase() && p.entity
