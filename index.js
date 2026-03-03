@@ -300,16 +300,6 @@ function startBot() {
   bot.pathfinder.tickTimeout = 40
 
   // Anti-stuck protection
-  bot.on("physicsTick", () => {
-    if (!bot.pathfinder.isMoving()) return
-
-    const vel = bot.entity.velocity
-    const speed = Math.abs(vel.x) + Math.abs(vel.z)
-
-    if (speed < 0.01) {
-      bot.pathfinder.stop()
-    }
-  })
 
   setTimeout(() => walkToNPC(), 6000)
 
@@ -355,33 +345,21 @@ async function walkToNPC() {
 
   console.log("🚶 Walking to Survival NPC...")
 
-  bot.pathfinder.setMovements(defaultMovements)
+  const mcData = require("minecraft-data")(bot.version)
 
-  const goal = new goals.GoalNear(63, 94, 695, 2)
-  bot.pathfinder.setGoal(goal)
-
-  setTimeout(() => {
-    if (bot.pathfinder.isMoving()) {
-      console.log("⚠ Path taking too long — retrying")
-      bot.pathfinder.setGoal(null)
-      alreadyWalking = false
-      walkToNPC()
-    }
-  }, 15000)
+  bot.pathfinder.setMovements(new Movements(bot, mcData))
+  bot.pathfinder.setGoal(new goals.GoalBlock(63, 94, 695))
 
   bot.once("goal_reached", async () => {
-    console.log("📍 Reached Survival NPC area")
-
     await bot.waitForTicks(20)
 
     const entity = bot.nearestEntity(e =>
       e.position &&
-      bot.entity.position.distanceTo(e.position) < 7 &&
+      bot.entity.position.distanceTo(e.position) < 5 &&
       (e.type === "mob" || e.type === "player")
     )
 
     if (!entity) {
-      console.log("❌ NPC not found, retrying...")
       alreadyWalking = false
       return setTimeout(walkToNPC, 5000)
     }
@@ -394,7 +372,6 @@ async function walkToNPC() {
     console.log("✅ Clicked Survival NPC")
   })
 }
-
 // ================= CHAT PARSER =================
 function parseChat(message) {
   const colon = message.indexOf(":")
