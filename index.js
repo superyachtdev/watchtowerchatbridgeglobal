@@ -386,14 +386,31 @@ async function updateStatusEmbed() {
   const channel = await discordClient.channels.fetch(process.env.STATUS_CHANNEL_ID)
   if (!channel) return
 
+  // Create progress bar
+  const maxPlayers = 300
+  const percent = Math.min((survivalOnline / maxPlayers), 1)
+  const filledBars = Math.round(percent * 10)
+  const emptyBars = 10 - filledBars
+
+  const progressBar = "🟨".repeat(filledBars) + "⬛".repeat(emptyBars)
+
   const embed = new EmbedBuilder()
-    .setColor(0xF1C40F) // nice gold
-    .setTitle("🌍 Survival Server Status")
+    .setColor(0xF1C40F) // gold
+    .setTitle("🌍 Survival")
+    .setDescription("```yaml\nSTATUS: Online\n```")
     .addFields(
-      { name: "Server", value: "Survival", inline: true },
-      { name: "Online Players", value: `${survivalOnline}/300`, inline: true },
-      { name: "Status", value: "🟢 Online" }
+      {
+        name: "👥 Players Online",
+        value: `**${survivalOnline} / ${maxPlayers}**`,
+        inline: false
+      },
+      {
+        name: "📊 Capacity",
+        value: `${progressBar}  **${Math.round(percent * 100)}%**`,
+        inline: false
+      }
     )
+    .setFooter({ text: "Live updating every 5 seconds" })
     .setTimestamp()
 
   if (!statusMessage) {
