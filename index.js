@@ -15,6 +15,7 @@ let alreadyWalking = false
 let survivalOnline = 0
 let statusMessage = null
 let updatingEmbed = false
+let keepAliveInterval = null
 let defaultMovements 
 // ================= INFLATION TRACKER =================
 let lastBaltopTotal = null
@@ -399,6 +400,7 @@ function startBot() {
     version: "1.20.1",
     profilesFolder: path.join(__dirname, "auth_cache"),
     skipValidation: true,
+    checkTimeoutInterval: 60 * 1000,
     disableChatSigning: true
   })
 
@@ -422,6 +424,7 @@ function startBot() {
   bot.pathfinder.thinkTimeout = 10000
   bot.pathfinder.tickTimeout = 40
 
+  
   // Anti-stuck protection
 
   if (baltopInterval) clearInterval(baltopInterval)
@@ -432,7 +435,7 @@ baltopInterval = setInterval(() => {
   }
 }, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
 
-  setTimeout(() => walkToNPC(), 6000)
+  setTimeout(() => walkToNPC(), 12000)
 
   if (onlineInterval) clearInterval(onlineInterval)
 
@@ -441,6 +444,21 @@ onlineInterval = setInterval(() => {
     bot.chat("/online")
   }
 }, 5000)
+})
+
+if (keepAliveInterval) clearInterval(keepAliveInterval)
+
+keepAliveInterval = setInterval(() => {
+  if (bot && bot.player) {
+    bot.setControlState("jump", true)
+    setTimeout(() => bot.setControlState("jump", false), 500)
+  }
+}, 60000)
+
+bot.pathfinder.on("path_update", (r) => {
+  if (r.status === "noPath") {
+    bot.pathfinder.setGoal(null)
+  }
 })
 
   bot.on("message", async (jsonMsg) => {
@@ -507,13 +525,17 @@ if (baltopMatch) {
   })
 
   bot.on("end", () => {
-    if (reconnecting) return
-    reconnecting = true
-    setTimeout(() => {
-      reconnecting = false
-      startBot()
-    }, 5000)
-  })
+  console.log("🔌 Disconnected from server")
+
+  if (reconnecting) return
+  reconnecting = true
+
+  setTimeout(() => {
+    console.log("🔄 Reconnecting bot...")
+    reconnecting = false
+    startBot()
+  }, 10000)
+})
 }
 
 // ================= WALK =================
