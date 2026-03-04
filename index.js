@@ -15,6 +15,7 @@ let alreadyWalking = false
 let survivalOnline = 0
 let statusMessage = null
 let updatingEmbed = false
+let chatKeepAliveInterval = null
 let keepAliveInterval = null
 let defaultMovements 
 // ================= INFLATION TRACKER =================
@@ -408,7 +409,7 @@ function startBot() {
   })
 
   bot.setMaxListeners(50)
-  
+
   bot.loadPlugin(pathfinder)
   bot.on("error", (err) => {
 
@@ -503,14 +504,31 @@ setTimeout(() => {
   }, 10000)
 
 }, 25000) // wait longer so proxy transfer finishes
+// keep connection alive
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
 keepAliveInterval = setInterval(() => {
-  if (bot && bot.player) {
-    bot.setControlState("jump", true)
-    setTimeout(() => bot.setControlState("jump", false), 500)
-  }
-}, 60000)
+
+  if (!bot || !bot.player) return
+  if (bot.pathfinder && bot.pathfinder.isMoving()) return
+
+  bot.setControlState("jump", true)
+
+  setTimeout(() => {
+    bot.setControlState("jump", false)
+  }, 300)
+
+}, 30000)
+
+if (chatKeepAliveInterval) clearInterval(chatKeepAliveInterval)
+
+chatKeepAliveInterval = setInterval(() => {
+
+  if (!bot || !bot.player) return
+
+  bot.chat("hi")
+
+}, 120000)
 })
 
 
@@ -560,17 +578,6 @@ if (baltopMatch) {
 }
     
 
-  const cleaned = baltopMatch[1].replace(/,/g, "")
-  const total = parseFloat(cleaned)
-
-  if (!isNaN(total)) {
-    handleBaltopTotal(total)
-  }
-
-  return
-}
-
-if (baltopMatch) {
   const cleaned = baltopMatch[1].replace(/,/g, "")
   const total = parseFloat(cleaned)
 
