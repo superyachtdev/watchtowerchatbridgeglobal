@@ -29,6 +29,7 @@ let baltopInterval = null
 let onlineInterval = null
 let baltopWatchdog = null
 let baltopResolved = false
+let baltopErrorMessage = null
 const fs = require("fs")
 
 const DATA_FILE = path.join(__dirname, "auth_cache", "inflation_data.json")
@@ -440,26 +441,36 @@ baltopInterval = setInterval(() => {
     if (baltopWatchdog) clearTimeout(baltopWatchdog)
 
     baltopWatchdog = setTimeout(async () => {
-      if (!baltopResolved && discordClient) {
-        try {
-          const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
-          if (!channel) return
 
-          const embed = new EmbedBuilder()
-            .setColor(0xE74C3C)
-            .setTitle("⚠ Baltop Command Unavailable")
-            .setDescription(
-              "The `/baltop` command did not return **Server Total** within 20 seconds.\n\n" +
-              "Economy calculations are currently paused until the command works again."
-            )
-            .setTimestamp()
+  if (!baltopResolved && discordClient) {
 
-          await channel.send({ embeds: [embed] })
-        } catch (err) {
-          console.log("Failed to send baltop failure alert:", err.message)
-        }
+    try {
+
+      const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
+      if (!channel) return
+
+      const embed = new EmbedBuilder()
+        .setColor(0xE74C3C)
+        .setTitle("⚠ Baltop Command Unavailable")
+        .setDescription(
+          "The `/baltop` command did not return **Server Total** within 20 seconds.\n\n" +
+          "Economy calculations are currently paused until the command works again."
+        )
+        .setTimestamp()
+
+      if (!baltopErrorMessage) {
+        baltopErrorMessage = await channel.send({ embeds: [embed] })
+      } else {
+        await baltopErrorMessage.edit({ embeds: [embed] })
       }
-    }, 20000)
+
+    } catch (err) {
+      console.log("Failed to update baltop error:", err.message)
+    }
+
+  }
+
+}, 20000)
 
   }
 }, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
@@ -523,6 +534,11 @@ if (baltopMatch) {
 
   baltopResolved = true
   if (baltopWatchdog) clearTimeout(baltopWatchdog)
+     if (baltopErrorMessage) {
+  inflationMessage = baltopErrorMessage
+  baltopErrorMessage = null
+}
+    
 
   const cleaned = baltopMatch[1].replace(/,/g, "")
   const total = parseFloat(cleaned)
