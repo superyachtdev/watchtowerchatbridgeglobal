@@ -407,7 +407,18 @@ function startBot() {
     disableChatSigning: true
   })
 
+  bot.setMaxListeners(50)
+  
   bot.loadPlugin(pathfinder)
+  bot.on("error", (err) => {
+
+  if (err.code === "ECONNRESET") {
+    console.log("Proxy transfer detected — ignoring reset")
+    return
+  }
+
+  console.log("Bot error:", err.code || err.message)
+})
 
   bot.once("spawn", () => {
   console.log("🤖 Bot spawned — initializing pathfinder")
@@ -478,11 +489,20 @@ baltopInterval = setInterval(() => {
 
   if (onlineInterval) clearInterval(onlineInterval)
 
-onlineInterval = setInterval(() => {
-  if (bot && bot.player) {
-    bot.chat("/online")
-  }
-}, 5000)
+// Start polling AFTER server transfer
+setTimeout(() => {
+
+  console.log("📊 Starting /online polling")
+
+  if (onlineInterval) clearInterval(onlineInterval)
+
+  onlineInterval = setInterval(() => {
+    if (bot && bot.player) {
+      bot.chat("/online")
+    }
+  }, 10000)
+
+}, 25000) // wait longer so proxy transfer finishes
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
 keepAliveInterval = setInterval(() => {
@@ -579,6 +599,8 @@ if (baltopMatch) {
 
   bot.on("end", () => {
   console.log("🔌 Disconnected from server")
+
+  alreadyWalking = false
 
   if (reconnecting) return
   reconnecting = true
