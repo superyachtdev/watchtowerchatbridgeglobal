@@ -423,9 +423,6 @@ function startBot() {
   // Stabilizers
   bot.pathfinder.thinkTimeout = 10000
   bot.pathfinder.tickTimeout = 40
-  bot.pathfinder.on("path_reset", () => {
-  bot.clearControlStates()
-})
 
   
   // Anti-stuck protection
