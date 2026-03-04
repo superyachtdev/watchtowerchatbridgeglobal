@@ -423,6 +423,11 @@ function startBot() {
   // Stabilizers
   bot.pathfinder.thinkTimeout = 10000
   bot.pathfinder.tickTimeout = 40
+  bot.pathfinder.on("path_update", (r) => {
+  if (r.status === "noPath") {
+    bot.pathfinder.setGoal(null)
+  }
+})
 
   
   // Anti-stuck protection
@@ -454,12 +459,6 @@ keepAliveInterval = setInterval(() => {
     setTimeout(() => bot.setControlState("jump", false), 500)
   }
 }, 60000)
-
-bot.pathfinder.on("path_update", (r) => {
-  if (r.status === "noPath") {
-    bot.pathfinder.setGoal(null)
-  }
-})
 
   bot.on("message", async (jsonMsg) => {
   const raw = jsonMsg.toString().trim()
