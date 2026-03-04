@@ -423,10 +423,8 @@ function startBot() {
   // Stabilizers
   bot.pathfinder.thinkTimeout = 10000
   bot.pathfinder.tickTimeout = 40
-  bot.pathfinder.on("path_update", (r) => {
-  if (r.status === "noPath") {
-    bot.pathfinder.setGoal(null)
-  }
+  bot.pathfinder.on("path_reset", () => {
+  bot.clearControlStates()
 })
 
   
@@ -449,8 +447,6 @@ onlineInterval = setInterval(() => {
     bot.chat("/online")
   }
 }, 5000)
-})
-
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
 keepAliveInterval = setInterval(() => {
@@ -459,6 +455,8 @@ keepAliveInterval = setInterval(() => {
     setTimeout(() => bot.setControlState("jump", false), 500)
   }
 }, 60000)
+})
+
 
   bot.on("message", async (jsonMsg) => {
   const raw = jsonMsg.toString().trim()
