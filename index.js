@@ -507,21 +507,13 @@ setTimeout(() => {
 // keep connection alive
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
-keepAliveInterval = setInterval(() => {
+keepAliveInterval = setInterval(async () => {
 
   if (!bot || !bot.player) return
 
-  // tiny random delay to look natural
-  const delay = Math.floor(Math.random() * 500)
-
-  setTimeout(() => {
-    bot.setControlState("jump", true)
-
-    setTimeout(() => {
-      bot.setControlState("jump", false)
-    }, 250)
-
-  }, delay)
+  try {
+    await bot.jump()
+  } catch {}
 
 }, 30000)
 
