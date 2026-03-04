@@ -510,13 +510,18 @@ if (keepAliveInterval) clearInterval(keepAliveInterval)
 keepAliveInterval = setInterval(() => {
 
   if (!bot || !bot.player) return
-  if (bot.pathfinder && bot.pathfinder.isMoving()) return
 
-  bot.setControlState("jump", true)
+  // tiny random delay to look natural
+  const delay = Math.floor(Math.random() * 500)
 
   setTimeout(() => {
-    bot.setControlState("jump", false)
-  }, 300)
+    bot.setControlState("jump", true)
+
+    setTimeout(() => {
+      bot.setControlState("jump", false)
+    }, 250)
+
+  }, delay)
 
 }, 30000)
 
