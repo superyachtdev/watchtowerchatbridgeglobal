@@ -501,21 +501,22 @@ setTimeout(() => {
     if (bot && bot.player) {
       bot.chat("/online")
     }
-  }, 10000)
+  }, 15000)
 
 }, 25000) // wait longer so proxy transfer finishes
 // keep connection alive
+// ================= RTP KEEPALIVE =================
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
-keepAliveInterval = setInterval(async () => {
+keepAliveInterval = setInterval(() => {
 
   if (!bot || !bot.player) return
 
-  try {
-    await bot.jump()
-  } catch {}
+  console.log("🌍 Running /rtp")
 
-}, 30000)
+  bot.chat("/rtp")
+
+}, 45000)
 
 if (chatKeepAliveInterval) clearInterval(chatKeepAliveInterval)
 
