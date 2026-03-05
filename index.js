@@ -925,15 +925,15 @@ async function updateInflationEmbed() {
   
 
   function formatTrend(percent) {
-    if (percent === null) return "⏳ Collecting..."
+  if (percent === null) return "⏳ Pending.."
 
-    const isInflation = percent >= 0
-    const sign = isInflation ? "+" : "-"
-    const word = isInflation ? "Inflation" : "Deflation"
-    const emoji = isInflation ? "📈" : "📉"
+  const isGrowth = percent >= 0
+  const sign = isGrowth ? "+" : "-"
+  const word = isGrowth ? "Wealth Growth" : "Wealth Decline"
+  const emoji = isGrowth ? "📈" : "📉"
 
-    return `${emoji} **${sign}${Math.abs(percent).toFixed(2)}% ${word}**`
-  }
+  return `${emoji} **${sign}${Math.abs(percent).toFixed(2)}% ${word}**`
+}
 
   function formatMoneyChange(minutes, percent) {
     const past = getPast(minutes)
