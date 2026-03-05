@@ -518,7 +518,7 @@ keepAliveInterval = setInterval(() => {
     console.log("👊 Bot punched")
   } catch (err) {}
 
-}, 240000)
+}, 120000)
 })
 
 
