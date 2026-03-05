@@ -519,6 +519,7 @@ keepAliveInterval = setInterval(() => {
   } catch (err) {}
 
 }, 15000)
+})
 
 
   bot.on("message", async (jsonMsg) => {
