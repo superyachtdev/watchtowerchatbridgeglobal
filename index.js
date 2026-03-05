@@ -36,6 +36,7 @@ const CPI_ITEMS = {
 }
 
 const CPI_SAMPLE_SIZE = 5
+const CPI_MIN_SAMPLE = 2
 // ================= CRATE TRACKER =================
 // ================= CRATE TRACKER =================
 let crateHistory = [] // { time, type }
@@ -940,18 +941,27 @@ async function parseAuctionPage(window) {
   }
 
   const done = Object.values(CPI_ITEMS).every(v => v.length >= CPI_SAMPLE_SIZE)
+const minimumMet = Object.values(CPI_ITEMS).every(v => v.length >= CPI_MIN_SAMPLE)
 
   if (done) {
 
-    finalizeAuctionBasket()
+  finalizeAuctionBasket()
+  return
 
-  } else {
+}
 
-    const nextButton = window.slots[53]
+const nextButton = window.slots[53]
 
 if (!nextButton) {
-  console.log("AH scan finished — no more pages")
-  finalizeAuctionBasket()
+
+  if (minimumMet) {
+    console.log("AH scan finished with minimum samples")
+    finalizeAuctionBasket()
+  } else {
+    console.log("AH scan failed — not enough listings")
+    auctionScanning = false
+  }
+
   return
 }
 
@@ -960,8 +970,6 @@ bot.clickWindow(53, 0, 0)
 bot.once("windowOpen", async (nextWindow) => {
   await parseAuctionPage(nextWindow)
 })
-
-  }
 }
 
 function median(arr) {
@@ -980,11 +988,15 @@ function finalizeAuctionBasket() {
 
   for (const item in CPI_ITEMS) {
 
-    const med = median(CPI_ITEMS[item])
+  const prices = CPI_ITEMS[item]
 
-    basket += med
+  if (prices.length < CPI_MIN_SAMPLE) continue
 
-  }
+  const med = median(prices)
+
+  basket += med
+
+}
 
   lastAuctionBasket = basket
 
