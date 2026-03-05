@@ -17,10 +17,25 @@ let statusMessage = null
 let updatingEmbed = false
 let chatKeepAliveInterval = null
 let keepAliveInterval = null
+
 let defaultMovements 
 // ================= INFLATION TRACKER =================
 let lastBaltopTotal = null
 let baltopHistory = [] // { time, total }
+// ================= AUCTION CPI TRACKER =================
+let auctionHistory = [] // { time, basket }
+let lastAuctionBasket = null
+let auctionMessage = null
+let auctionScanning = false
+
+const CPI_ITEMS = {
+  "Chicken Spawner": [],
+  "Block of Netherite": [],
+  "Sell Wand (Tier 2)": [],
+  "Enderman Spawner": []
+}
+
+const CPI_SAMPLE_SIZE = 5
 // ================= CRATE TRACKER =================
 // ================= CRATE TRACKER =================
 let crateHistory = [] // { time, type }
@@ -227,7 +242,9 @@ function loadInflationData() {
       baltopHistory = parsed.baltopHistory || []
       lastBaltopTotal = parsed.lastBaltopTotal || null
       crateHistory = parsed.crateHistory || []
-
+      auctionHistory = parsed.auctionHistory || []
+      lastAuctionBasket = parsed.lastAuctionBasket || null
+      
       console.log("📂 Loaded inflation history:", baltopHistory.length, "entries")
       console.log("📦 Loaded crate history:", crateHistory.length, "entries")
     }
@@ -241,7 +258,9 @@ function saveInflationData() {
     const data = {
       baltopHistory,
       lastBaltopTotal,
-      crateHistory
+      crateHistory,
+      auctionHistory,
+      lastAuctionBasket
     }
 
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
@@ -486,6 +505,16 @@ baltopInterval = setInterval(() => {
 
   }
 }, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
+  setInterval(() => {
+
+  if (!bot || !bot.player) return
+  if (auctionScanning) return
+
+  console.log("📊 Starting AH CPI scan")
+
+  scanAuctionHouse()
+
+}, 300000) // every 5 minutes
   setTimeout(() => walkToNPC(), 12000)
 
   if (onlineInterval) clearInterval(onlineInterval)
@@ -846,6 +875,203 @@ function calculateCrates(minutes, type) {
     entry.type === type &&
     now - entry.time <= minutes * 60 * 1000
   ).length
+}
+
+async function scanAuctionHouse() {
+
+  auctionScanning = true
+
+  for (const item in CPI_ITEMS) {
+    CPI_ITEMS[item] = []
+  }
+
+  bot.chat("/ah")
+
+  bot.once("windowOpen", async (window) => {
+
+    await parseAuctionPage(window)
+
+  })
+}
+
+async function parseAuctionPage(window) {
+
+  for (const slot of window.slots) {
+
+    if (!slot) continue
+
+    const lore = slot.nbt?.value?.display?.value?.Lore?.value?.value
+    if (!lore) continue
+
+    let itemName = null
+    let price = null
+
+    for (const line of lore) {
+
+      const text = line.toString()
+
+      for (const target in CPI_ITEMS) {
+
+        if (text.includes(target)) {
+          itemName = target
+        }
+
+      }
+
+      const match = text.match(/\$([\d,\.]+)/)
+
+      if (match) {
+        price = parseFloat(match[1].replace(/,/g,""))
+      }
+
+    }
+
+    if (!itemName || !price) continue
+
+    if (CPI_ITEMS[itemName].length < CPI_SAMPLE_SIZE) {
+
+      const count = slot.count || 1
+      const unitPrice = price / count
+
+      CPI_ITEMS[itemName].push(unitPrice)
+
+    }
+
+  }
+
+  const done = Object.values(CPI_ITEMS).every(v => v.length >= CPI_SAMPLE_SIZE)
+
+  if (done) {
+
+    finalizeAuctionBasket()
+
+  } else {
+
+    const nextButton = window.slots[53]
+
+if (!nextButton) {
+  console.log("AH scan finished — no more pages")
+  finalizeAuctionBasket()
+  return
+}
+
+bot.clickWindow(53, 0, 0)
+
+bot.once("windowOpen", async (nextWindow) => {
+  await parseAuctionPage(nextWindow)
+})
+
+  }
+}
+
+function median(arr) {
+
+  const sorted = [...arr].sort((a,b)=>a-b)
+  const mid = Math.floor(sorted.length/2)
+
+  return sorted.length % 2
+    ? sorted[mid]
+    : (sorted[mid-1]+sorted[mid])/2
+}
+
+function finalizeAuctionBasket() {
+
+  let basket = 0
+
+  for (const item in CPI_ITEMS) {
+
+    const med = median(CPI_ITEMS[item])
+
+    basket += med
+
+  }
+
+  lastAuctionBasket = basket
+
+  auctionHistory.push({
+    time: Date.now(),
+    basket
+  })
+
+  auctionHistory = auctionHistory.filter(
+    e => Date.now() - e.time <= 24 * 60 * 60 * 1000
+  )
+
+  saveInflationData()
+
+  updateAuctionEmbed()
+
+  auctionScanning = false
+}
+
+function calculateAuctionInflation(minutes) {
+
+  const now = Date.now()
+
+  const candidates = auctionHistory
+    .filter(e => now - e.time >= minutes * 60000)
+    .sort((a,b)=>b.time-a.time)
+
+  const past = candidates[0]
+
+  if (!past || !lastAuctionBasket) return null
+
+  return ((lastAuctionBasket - past.basket) / past.basket) * 100
+}
+
+async function updateAuctionEmbed() {
+
+  const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
+  if (!channel) return
+
+  const infl30 = calculateAuctionInflation(30)
+  const infl60 = calculateAuctionInflation(60)
+  const infl720 = calculateAuctionInflation(720)
+  const infl1440 = calculateAuctionInflation(1440)
+
+  function format(percent){
+
+    if (percent === null) return "⏳ Collecting..."
+
+    const sign = percent >= 0 ? "+" : "-"
+    const emoji = percent >= 0 ? "📈" : "📉"
+
+    return `${emoji} **${sign}${Math.abs(percent).toFixed(2)}% Price Change**`
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ECC71)
+    .setTitle("🧺 Survival Market CPI")
+    .setDescription(
+      `**Tracked Basket**\n` +
+      `Chicken Spawner\n` +
+      `Block of Netherite\n` +
+      `Sell Wand (Tier 2)\n` +
+      `Enderman Spawner\n\n` +
+      `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}`
+    )
+    .addFields(
+      { name: "⏱ 30 Minutes", value: format(infl30) },
+      { name: "🕐 1 Hour", value: format(infl60) },
+      { name: "🕛 12 Hours", value: format(infl720) },
+      { name: "📅 24 Hours", value: format(infl1440) }
+    )
+    .setFooter({ text: "Updates every 5 minutes via Auction House scan" })
+    .setTimestamp()
+
+  try {
+
+    if (!auctionMessage) {
+      auctionMessage = await channel.send({ embeds:[embed] })
+    } else {
+      await auctionMessage.edit({ embeds:[embed] })
+    }
+
+  } catch {
+
+    auctionMessage = await channel.send({ embeds:[embed] })
+
+  }
 }
 
 async function updateCrateEmbed() {
