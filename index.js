@@ -506,28 +506,19 @@ setTimeout(() => {
 }, 25000) // wait longer so proxy transfer finishes
 // keep connection alive
 // ================= RTP KEEPALIVE =================
+// ================= PUNCH KEEPALIVE =================
 if (keepAliveInterval) clearInterval(keepAliveInterval)
 
 keepAliveInterval = setInterval(() => {
 
   if (!bot || !bot.player) return
 
-  console.log("🌍 Running /rtp")
+  try {
+    bot.swingArm("right")
+    console.log("👊 Bot punched")
+  } catch (err) {}
 
-  bot.chat("/rtp")
-
-}, 45000)
-
-if (chatKeepAliveInterval) clearInterval(chatKeepAliveInterval)
-
-chatKeepAliveInterval = setInterval(() => {
-
-  if (!bot || !bot.player) return
-
-  bot.chat("hi")
-
-}, 120000)
-})
+}, 15000)
 
 
   bot.on("message", async (jsonMsg) => {
