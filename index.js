@@ -17,6 +17,7 @@ let statusMessage = null
 let updatingEmbed = false
 let chatKeepAliveInterval = null
 let keepAliveInterval = null
+const AH_SEARCH_SLOT = 49
 
 let defaultMovements 
 // ================= INFLATION TRACKER =================
@@ -36,7 +37,7 @@ const CPI_ITEMS = {
 }
 
 const CPI_SAMPLE_SIZE = 5
-const CPI_MIN_SAMPLE = 2
+const CPI_MIN_SAMPLE = 1
 // ================= CRATE TRACKER =================
 // ================= CRATE TRACKER =================
 let crateHistory = [] // { time, type }
@@ -881,33 +882,61 @@ function calculateCrates(minutes, type) {
 
 async function scanAuctionHouse() {
 
+  if (auctionScanning) return
   auctionScanning = true
+
+  console.log("📊 Starting AH CPI scan")
 
   for (const item in CPI_ITEMS) {
     CPI_ITEMS[item] = []
   }
 
-  console.log("📊 Opening AH")
+  scanNextCPIItem(Object.keys(CPI_ITEMS), 0)
+}
+
+async function scanNextCPIItem(items, index) {
+
+  if (index >= items.length) {
+    finalizeAuctionBasket()
+    return
+  }
+
+  const item = items[index]
+
+  console.log("🔎 Searching AH for:", item)
 
   bot.chat("/ah")
 
-  const failSafe = setTimeout(() => {
-    console.log("⚠ AH window never opened")
-    auctionScanning = false
-  }, 8000)
+  bot.once("windowOpen", (window) => {
 
-  bot.once("windowOpen", async (window) => {
+    bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
 
-    clearTimeout(failSafe)
+    bot.once("signUpdate", (sign) => {
 
-    console.log("📊 AH window opened")
+      bot.updateSign(sign.position, [
+        item,
+        "",
+        "",
+        ""
+      ])
 
-    await parseAuctionPage(window)
+      bot.once("windowOpen", async (results) => {
+
+        await collectListingPrices(results, item)
+
+        setTimeout(() => {
+          scanNextCPIItem(items, index + 1)
+        }, 800)
+
+      })
+
+    })
 
   })
+
 }
 
-async function parseAuctionPage(window) {
+async function collectListingPrices(window, itemName) {
 
   for (const slot of window.slots) {
 
@@ -916,33 +945,23 @@ async function parseAuctionPage(window) {
     let lore = slot.nbt?.value?.display?.value?.Lore?.value
     if (!lore) continue
 
-    // Ensure lore is iterable
-    if (!Array.isArray(lore)) {
-      lore = [lore]
-    }
+    if (!Array.isArray(lore)) lore = [lore]
 
-    let itemName = null
     let price = null
 
     for (const line of lore) {
 
       const text = String(line?.value ?? line?.text ?? line ?? "")
 
-      for (const target in CPI_ITEMS) {
-        if (text.includes(target)) {
-          itemName = target
-        }
-      }
-
       const match = text.match(/\$([\d,\.]+)/)
 
       if (match) {
-        price = parseFloat(match[1].replace(/,/g, ""))
+        price = parseFloat(match[1].replace(/,/g,""))
       }
 
     }
 
-    if (!itemName || !price) continue
+    if (!price) continue
 
     if (CPI_ITEMS[itemName].length < CPI_SAMPLE_SIZE) {
 
@@ -955,35 +974,8 @@ async function parseAuctionPage(window) {
 
   }
 
-  const done = Object.values(CPI_ITEMS).every(v => v.length >= CPI_SAMPLE_SIZE)
-  const minimumMet = Object.values(CPI_ITEMS).every(v => v.length >= CPI_MIN_SAMPLE)
-
-  if (done) {
-    finalizeAuctionBasket()
-    return
-  }
-
-  const nextButton = window.slots[53]
-
-  if (!nextButton) {
-
-    if (minimumMet) {
-      console.log("AH scan finished with minimum samples")
-      finalizeAuctionBasket()
-    } else {
-      console.log("AH scan failed — not enough listings")
-      auctionScanning = false
-    }
-
-    return
-  }
-
-  bot.clickWindow(53, 0, 0)
-
-  bot.once("windowOpen", async (nextWindow) => {
-    await parseAuctionPage(nextWindow)
-  })
 }
+
 
 function median(arr) {
 
