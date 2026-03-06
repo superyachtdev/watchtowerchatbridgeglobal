@@ -1103,7 +1103,13 @@ function finalizeAuctionBasket() {
     basket += med
   }
 
-  lastAuctionBasket = basket
+  if (basket <= 0) {
+  console.log("⚠ Basket value invalid — skipping sample")
+  auctionScanning = false
+  return
+}
+
+lastAuctionBasket = basket
 
   console.log(`💰 Basket value: $${basket}`)
 
@@ -1128,14 +1134,21 @@ function calculateAuctionInflation(minutes) {
   const now = Date.now()
 
   const candidates = auctionHistory
-    .filter(e => now - e.time >= minutes * 60000)
+    .filter(e =>
+      now - e.time >= minutes * 60000 &&
+      e.basket > 0
+    )
     .sort((a,b)=>b.time-a.time)
 
   const past = candidates[0]
 
-  if (!past || !lastAuctionBasket) return null
+  if (!past || !lastAuctionBasket || past.basket <= 0) return null
 
-  return ((lastAuctionBasket - past.basket) / past.basket) * 100
+  const change = ((lastAuctionBasket - past.basket) / past.basket) * 100
+
+  if (!isFinite(change)) return null
+
+  return change
 }
 
 async function updateAuctionEmbed() {
