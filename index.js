@@ -907,34 +907,34 @@ async function scanNextCPIItem(items, index) {
 
   bot.chat("/ah")
 
-  bot.once("windowOpen", async (window) => {
+  bot.once("windowOpen", async (ahWindow) => {
 
-  await bot.waitForTicks(6)
+    await bot.waitForTicks(6)
 
-  bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
+    bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
 
     bot.once("windowOpen", async (signWindow) => {
 
-  if (signWindow.type !== "minecraft:sign") return
+      if (signWindow.type !== "minecraft:sign") return
 
-  await bot.updateSign(signWindow.position, [
-    item,
-    "",
-    "",
-    ""
-  ])
+      await bot.updateSign(signWindow.position, [
+        item,
+        "",
+        "",
+        ""
+      ])
 
-  bot.once("windowOpen", async (results) => {
+      bot.once("windowOpen", async (resultsWindow) => {
 
-    await collectListingPrices(results, item)
+        await collectListingPrices(resultsWindow, item)
 
-    setTimeout(() => {
-      scanNextCPIItem(items, index + 1)
-    }, 800)
+        setTimeout(() => {
+          scanNextCPIItem(items, index + 1)
+        }, 700)
 
-  })
+      })
 
-})
+    })
 
   })
 
