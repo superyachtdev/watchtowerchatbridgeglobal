@@ -528,10 +528,11 @@ setTimeout(() => {
   if (onlineInterval) clearInterval(onlineInterval)
 
   onlineInterval = setInterval(() => {
-    if (bot && bot.player) {
-      bot.chat("/online")
-    }
-  }, 15000)
+  if (!bot || !bot.player) return
+  if (auctionScanning) return
+
+  bot.chat("/online")
+}, 15000)
 
 }, 25000) // wait longer so proxy transfer finishes
 // keep connection alive
@@ -886,9 +887,20 @@ async function scanAuctionHouse() {
     CPI_ITEMS[item] = []
   }
 
+  console.log("📊 Opening AH")
+
   bot.chat("/ah")
 
+  const failSafe = setTimeout(() => {
+    console.log("⚠ AH window never opened")
+    auctionScanning = false
+  }, 8000)
+
   bot.once("windowOpen", async (window) => {
+
+    clearTimeout(failSafe)
+
+    console.log("📊 AH window opened")
 
     await parseAuctionPage(window)
 
@@ -985,6 +997,8 @@ function median(arr) {
 function finalizeAuctionBasket() {
 
   let basket = 0
+
+  console.log("cpi basked finalized")
 
   for (const item in CPI_ITEMS) {
 
