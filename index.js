@@ -913,28 +913,31 @@ async function parseAuctionPage(window) {
 
     if (!slot) continue
 
-    const lore = slot.nbt?.value?.display?.value?.Lore?.value
+    let lore = slot.nbt?.value?.display?.value?.Lore?.value
     if (!lore) continue
+
+    // Ensure lore is iterable
+    if (!Array.isArray(lore)) {
+      lore = [lore]
+    }
 
     let itemName = null
     let price = null
 
     for (const line of lore) {
 
-      const text = String(line?.value ?? line?.text ?? line)
+      const text = String(line?.value ?? line?.text ?? line ?? "")
 
       for (const target in CPI_ITEMS) {
-
         if (text.includes(target)) {
           itemName = target
         }
-
       }
 
       const match = text.match(/\$([\d,\.]+)/)
 
       if (match) {
-        price = parseFloat(match[1].replace(/,/g,""))
+        price = parseFloat(match[1].replace(/,/g, ""))
       }
 
     }
@@ -953,35 +956,33 @@ async function parseAuctionPage(window) {
   }
 
   const done = Object.values(CPI_ITEMS).every(v => v.length >= CPI_SAMPLE_SIZE)
-const minimumMet = Object.values(CPI_ITEMS).every(v => v.length >= CPI_MIN_SAMPLE)
+  const minimumMet = Object.values(CPI_ITEMS).every(v => v.length >= CPI_MIN_SAMPLE)
 
   if (done) {
-
-  finalizeAuctionBasket()
-  return
-
-}
-
-const nextButton = window.slots[53]
-
-if (!nextButton) {
-
-  if (minimumMet) {
-    console.log("AH scan finished with minimum samples")
     finalizeAuctionBasket()
-  } else {
-    console.log("AH scan failed — not enough listings")
-    auctionScanning = false
+    return
   }
 
-  return
-}
+  const nextButton = window.slots[53]
 
-bot.clickWindow(53, 0, 0)
+  if (!nextButton) {
 
-bot.once("windowOpen", async (nextWindow) => {
-  await parseAuctionPage(nextWindow)
-})
+    if (minimumMet) {
+      console.log("AH scan finished with minimum samples")
+      finalizeAuctionBasket()
+    } else {
+      console.log("AH scan failed — not enough listings")
+      auctionScanning = false
+    }
+
+    return
+  }
+
+  bot.clickWindow(53, 0, 0)
+
+  bot.once("windowOpen", async (nextWindow) => {
+    await parseAuctionPage(nextWindow)
+  })
 }
 
 function median(arr) {
