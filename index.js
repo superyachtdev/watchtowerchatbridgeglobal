@@ -882,6 +882,21 @@ function calculateCrates(minutes, type) {
   ).length
 }
 
+function waitForWindow(timeout = 10000) {
+  return new Promise((resolve, reject) => {
+
+    const timer = setTimeout(() => {
+      reject(new Error("Window open timeout"))
+    }, timeout)
+
+    bot.once("windowOpen", (window) => {
+      clearTimeout(timer)
+      resolve(window)
+    })
+
+  })
+}
+
 async function scanAuctionHouse() {
 
   if (auctionScanning) {
@@ -900,10 +915,10 @@ async function scanAuctionHouse() {
 
   try {
     
-
+    await bot.waitForTicks(10)
     bot.chat("/ah")
 
-    const window = await bot.waitForWindow()
+    const window = await waitForWindow()
 
     console.log("📖 AH opened — scanning pages")
 
@@ -1003,7 +1018,7 @@ async function parseAuctionPage(window) {
 
     await bot.clickWindow(53, 0, 0)
 
-    const nextWindow = await bot.waitForWindow()
+    const nextWindow = await waitForWindow()
 
     await parseAuctionPage(nextWindow)
 
