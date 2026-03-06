@@ -512,7 +512,7 @@ baltopInterval = setInterval(() => {
   if (!bot || !bot.player) return
   if (auctionScanning) return
 
-  console.log("📊 Starting AH CPI scan")
+
 
   scanAuctionHouse()
 
@@ -882,16 +882,33 @@ function calculateCrates(minutes, type) {
 
 async function scanAuctionHouse() {
 
-  if (auctionScanning) return
+  if (auctionScanning) {
+    console.log("⏳ AH scan already running")
+    return
+  }
+
   auctionScanning = true
 
   console.log("📊 Starting AH CPI scan")
 
-  for (const item in CPI_ITEMS) {
-    CPI_ITEMS[item] = []
+  try {
+
+    // reset item samples
+    for (const item in CPI_ITEMS) {
+      CPI_ITEMS[item] = []
+    }
+
+    // start scanning items
+    await scanNextCPIItem(Object.keys(CPI_ITEMS), 0)
+
+  } catch (err) {
+
+    console.log("❌ AH scan failed:", err)
+
+    auctionScanning = false
+
   }
 
-  scanNextCPIItem(Object.keys(CPI_ITEMS), 0)
 }
 
 async function scanNextCPIItem(items, index) {
@@ -909,13 +926,11 @@ async function scanNextCPIItem(items, index) {
 
   bot.once("windowOpen", async (ahWindow) => {
 
-    await bot.waitForTicks(6)
+    await bot.waitForTicks(10)
 
-    bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
+    await bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
 
     bot.once("windowOpen", async (signWindow) => {
-
-      if (signWindow.type !== "minecraft:sign") return
 
       await bot.updateSign(signWindow.position, [
         item,
@@ -930,7 +945,7 @@ async function scanNextCPIItem(items, index) {
 
         setTimeout(() => {
           scanNextCPIItem(items, index + 1)
-        }, 700)
+        }, 800)
 
       })
 
