@@ -1015,8 +1015,14 @@ for (const text of textLines) {
   }
 
   // Netherite block
-  if (baseName === "netherite_block") {
-  itemName = "Block of Netherite"
+ if (baseName === "netherite_block") {
+
+  const itemDisplay = textLines.join(" ").toLowerCase().trim()
+
+  if (itemDisplay === "block of netherite") {
+    itemName = "Block of Netherite"
+  }
+
 }
 
   // Sell wand
