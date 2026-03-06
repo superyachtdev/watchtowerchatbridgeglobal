@@ -960,8 +960,23 @@ async function parseAuctionPage(window) {
     // Read display name
     if (displayName) {
       try {
-        const parsed = JSON.parse(displayName)
-        textLines.push(parsed.text || "")
+        try {
+
+  const parsed = JSON.parse(displayName)
+
+  if (parsed.text) textLines.push(parsed.text)
+
+  if (parsed.extra) {
+    for (const part of parsed.extra) {
+      if (part.text) textLines.push(part.text)
+    }
+  }
+
+} catch {
+
+  textLines.push(String(displayName))
+
+}
       } catch {
         textLines.push(String(displayName))
       }
@@ -1000,9 +1015,13 @@ for (const text of textLines) {
   }
 
   // Netherite block
-  if (baseName.includes("netherite_block") || normalized.includes("netherite")) {
-    itemName = "Block of Netherite"
-  }
+  if (
+  baseName === "netherite_block" &&
+  normalized.includes("block") &&
+  normalized.includes("netherite")
+) {
+  itemName = "Block of Netherite"
+}
 
   // Sell wand
   if (normalized.includes("sell wand")) {
