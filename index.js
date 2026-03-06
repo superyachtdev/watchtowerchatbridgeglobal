@@ -903,7 +903,7 @@ async function scanAuctionHouse() {
     console.log("⏳ AH scan already running")
     return
   }
-
+    
   auctionScanning = true
 
   console.log("📊 Starting AH CPI scan")
@@ -1004,6 +1004,11 @@ async function parseAuctionPage(window) {
 
   // Next page button
   const nextButton = window.slots[53]
+  if (!nextButton || nextButton.name === "gray_stained_glass_pane") {
+  console.log("📦 Reached final AH page")
+  finalizeAuctionBasket()
+  return
+}
 
   if (!nextButton) {
 
@@ -1018,9 +1023,18 @@ async function parseAuctionPage(window) {
 
     await bot.clickWindow(53, 0, 0)
 
-    const nextWindow = await waitForWindow()
+// give server time to update the GUI
+await bot.waitForTicks(15)
 
-    await parseAuctionPage(nextWindow)
+const nextWindow = bot.currentWindow
+
+if (!nextWindow) {
+  console.log("❌ AH window disappeared")
+  finalizeAuctionBasket()
+  return
+}
+
+await parseAuctionPage(nextWindow)
 
   } catch (err) {
 
@@ -1116,7 +1130,7 @@ async function updateAuctionEmbed() {
 
   const embed = new EmbedBuilder()
     .setColor(0x2ECC71)
-    .setTitle("🧺 Survival Market CPI")
+    .setTitle("🧺 Core Inflation")
     .setDescription(
       `**Tracked Basket**\n` +
       `Chicken Spawner\n` +
