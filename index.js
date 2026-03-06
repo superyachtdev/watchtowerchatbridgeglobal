@@ -244,10 +244,12 @@ function loadInflationData() {
       const parsed = JSON.parse(raw)
 
       baltopHistory = parsed.baltopHistory || []
-      lastBaltopTotal = parsed.lastBaltopTotal || null
-      crateHistory = parsed.crateHistory || []
-      auctionHistory = parsed.auctionHistory || []
-      lastAuctionBasket = parsed.lastAuctionBasket || null
+lastBaltopTotal = parsed.lastBaltopTotal || null
+crateHistory = parsed.crateHistory || []
+
+// RESET AUCTION CPI DATA
+auctionHistory = []
+lastAuctionBasket = null
       
       console.log("📂 Loaded inflation history:", baltopHistory.length, "entries")
       console.log("📦 Loaded crate history:", crateHistory.length, "entries")
@@ -1133,18 +1135,28 @@ function calculateAuctionInflation(minutes) {
 
   const now = Date.now()
 
-  const candidates = auctionHistory
+  const currentSamples = auctionHistory
+    .filter(e => now - e.time <= 15 * 60 * 1000)
+
+  const pastSamples = auctionHistory
     .filter(e =>
-      now - e.time >= minutes * 60000 &&
-      e.basket > 0
+      now - e.time >= minutes * 60 * 1000 &&
+      now - e.time <= minutes * 60 * 1000 + (15 * 60 * 1000)
     )
-    .sort((a,b)=>b.time-a.time)
 
-  const past = candidates[0]
+  if (currentSamples.length === 0 || pastSamples.length === 0) {
+    return null
+  }
 
-  if (!past || !lastAuctionBasket || past.basket <= 0) return null
+  const currentAvg =
+    currentSamples.reduce((sum,e)=>sum+e.basket,0) / currentSamples.length
 
-  const change = ((lastAuctionBasket - past.basket) / past.basket) * 100
+  const pastAvg =
+    pastSamples.reduce((sum,e)=>sum+e.basket,0) / pastSamples.length
+
+  if (pastAvg <= 0) return null
+
+  const change = ((currentAvg - pastAvg) / pastAvg) * 100
 
   if (!isFinite(change)) return null
 
