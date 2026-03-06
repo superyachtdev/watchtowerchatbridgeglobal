@@ -957,14 +957,26 @@ async function parseAuctionPage(window) {
       const text = String(line?.value ?? line?.text ?? line ?? "")
 
       // Detect item name
-      for (const target in CPI_ITEMS) {
-        if (text.includes(target)) {
-          itemName = target
-        }
-      }
+      const normalized = text.toLowerCase()
+
+if (normalized.includes("chicken") && normalized.includes("spawner")) {
+  itemName = "Chicken Spawner"
+}
+
+if (normalized.includes("enderman") && normalized.includes("spawner")) {
+  itemName = "Enderman Spawner"
+}
+
+if (normalized.includes("netherite")) {
+  itemName = "Block of Netherite"
+}
+
+if (normalized.includes("sell wand")) {
+  itemName = "Sell Wand (Tier 2)"
+}
 
       // Detect price
-      const match = text.match(/\$([\d,\.]+)/)
+      const match = text.match(/\$?\s*([\d,]+)/)
 
       if (match) {
         price = parseFloat(match[1].replace(/,/g, ""))
@@ -1061,21 +1073,27 @@ function finalizeAuctionBasket() {
 
   let basket = 0
 
-  console.log("cpi basked finalized")
+  console.log("📦 CPI basket finalized")
 
   for (const item in CPI_ITEMS) {
 
-  const prices = CPI_ITEMS[item]
+    const prices = CPI_ITEMS[item]
 
-  if (prices.length < CPI_MIN_SAMPLE) continue
+    if (prices.length === 0) {
+      console.log(`⚠ No listings found for ${item}`)
+      continue
+    }
 
-  const med = median(prices)
+    const med = median(prices)
 
-  basket += med
+    console.log(`📊 ${item} median: $${med}`)
 
-}
+    basket += med
+  }
 
   lastAuctionBasket = basket
+
+  console.log(`💰 Basket value: $${basket}`)
 
   auctionHistory.push({
     time: Date.now(),
