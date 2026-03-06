@@ -913,7 +913,7 @@ async function parseAuctionPage(window) {
 
     if (!slot) continue
 
-    const lore = slot.nbt?.value?.display?.value?.Lore?.value?.value
+    const lore = slot.nbt?.value?.display?.value?.Lore?.value
     if (!lore) continue
 
     let itemName = null
@@ -921,7 +921,7 @@ async function parseAuctionPage(window) {
 
     for (const line of lore) {
 
-      const text = line.toString()
+      const text = String(line?.value ?? line?.text ?? line)
 
       for (const target in CPI_ITEMS) {
 
