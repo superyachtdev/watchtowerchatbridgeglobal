@@ -209,6 +209,73 @@ app.get("/inflation", (req, res) => {
   `)
 })
 
+app.get("/coreinflation", (req, res) => {
+
+  if (!auctionHistory || auctionHistory.length === 0) {
+    return res.send("No CPI data yet.")
+  }
+
+  const base = auctionHistory[0].basket
+
+  const history = auctionHistory.map(entry => ({
+    time: entry.time,
+    percent: ((entry.basket - base) / base) * 100
+  }))
+
+  res.send(`
+  <html>
+  <head>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+
+  <body style="background:#111;color:white;font-family:sans-serif;">
+
+  <h2>Core Inflation (Auction Basket)</h2>
+
+  <canvas id="chart"></canvas>
+
+  <script>
+
+  const data = ${JSON.stringify(history)}
+
+  const ctx = document.getElementById("chart").getContext("2d")
+
+  new Chart(ctx,{
+    type:"line",
+    data:{
+      labels:data.map(d=>new Date(d.time).toLocaleTimeString()),
+      datasets:[{
+        label:"Core Inflation %",
+        data:data.map(d=>d.percent),
+        borderColor:"#2ECC71",
+        backgroundColor:"rgba(46,204,113,0.15)",
+        tension:0.2
+      }]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ticks:{color:"white"}},
+        y:{
+          ticks:{
+            color:"white",
+            callback:(value)=>value+"%"
+          }
+        }
+      },
+      plugins:{
+        legend:{labels:{color:"white"}}
+      }
+    }
+  })
+
+  </script>
+
+  </body>
+  </html>
+  `)
+})
+
 
 
 app.listen(PORT, "0.0.0.0", () => {
@@ -1229,10 +1296,11 @@ async function updateAuctionEmbed() {
     .setColor(0x2ECC71)
     .setTitle("🧺 Core Inflation")
     .setDescription(
-      `**Tracked Basket**\n` +
-      `${basketList}\n\n` +
-      `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}`
-    )
+  `**Tracked Basket**\n` +
+  `${basketList}\n\n` +
+  `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}\n\n` +
+  `📈 Click [here](https://watchtowerchatbridgeglobal-production.up.railway.app/coreinflation) to view in graph.`
+)
     .addFields(
       { name: "⏱ 30 Minutes", value: format(infl30) },
       { name: "🕐 1 Hour", value: format(infl60) },
