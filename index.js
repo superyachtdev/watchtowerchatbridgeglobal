@@ -891,71 +891,19 @@ async function scanAuctionHouse() {
 
   console.log("📊 Starting AH CPI scan")
 
-  try {
-
-    // reset item samples
-    for (const item in CPI_ITEMS) {
-      CPI_ITEMS[item] = []
-    }
-
-    // start scanning items
-    await scanNextCPIItem(Object.keys(CPI_ITEMS), 0)
-
-  } catch (err) {
-
-    console.log("❌ AH scan failed:", err)
-
-    auctionScanning = false
-
+  for (const item in CPI_ITEMS) {
+    CPI_ITEMS[item] = []
   }
-
-}
-
-async function scanNextCPIItem(items, index) {
-
-  if (index >= items.length) {
-    finalizeAuctionBasket()
-    return
-  }
-
-  const item = items[index]
-
-  console.log("🔎 Searching AH for:", item)
 
   bot.chat("/ah")
 
-  bot.once("windowOpen", async (ahWindow) => {
-
-    await bot.waitForTicks(10)
-
-    await bot.clickWindow(AH_SEARCH_SLOT, 0, 0)
-
-    bot.once("windowOpen", async (signWindow) => {
-
-      await bot.updateSign(signWindow.position, [
-        item,
-        "",
-        "",
-        ""
-      ])
-
-      bot.once("windowOpen", async (resultsWindow) => {
-
-        await collectListingPrices(resultsWindow, item)
-
-        setTimeout(() => {
-          scanNextCPIItem(items, index + 1)
-        }, 800)
-
-      })
-
-    })
-
+  bot.once("windowOpen", async (window) => {
+    await parseAuctionPage(window)
   })
 
 }
 
-async function collectListingPrices(window, itemName) {
+async function parseAuctionPage(window) {
 
   for (const slot of window.slots) {
 
@@ -967,10 +915,15 @@ async function collectListingPrices(window, itemName) {
     if (!Array.isArray(lore)) lore = [lore]
 
     let price = null
+    let itemName = null
 
     for (const line of lore) {
 
       const text = String(line?.value ?? line?.text ?? line ?? "")
+
+      for (const target in CPI_ITEMS) {
+        if (text.includes(target)) itemName = target
+      }
 
       const match = text.match(/\$([\d,\.]+)/)
 
@@ -980,7 +933,7 @@ async function collectListingPrices(window, itemName) {
 
     }
 
-    if (!price) continue
+    if (!itemName || !price) continue
 
     if (CPI_ITEMS[itemName].length < CPI_SAMPLE_SIZE) {
 
@@ -992,6 +945,19 @@ async function collectListingPrices(window, itemName) {
     }
 
   }
+
+  const nextButton = window.slots[53]
+
+  if (!nextButton) {
+    finalizeAuctionBasket()
+    return
+  }
+
+  bot.clickWindow(53, 0, 0)
+
+  bot.once("windowOpen", async (nextWindow) => {
+    await parseAuctionPage(nextWindow)
+  })
 
 }
 
