@@ -1015,11 +1015,7 @@ for (const text of textLines) {
   }
 
   // Netherite block
-  if (
-  baseName === "netherite_block" &&
-  normalized.includes("block") &&
-  normalized.includes("netherite")
-) {
+  if (baseName === "netherite_block") {
   itemName = "Block of Netherite"
 }
 
