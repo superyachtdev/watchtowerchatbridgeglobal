@@ -858,18 +858,25 @@ function handleBaltopTotal(total) {
 updateInflationEmbed()
 }
 
-function calculateInflation(minutes) {
+function calculateAuctionInflation(minutes) {
+
   const now = Date.now()
 
-  const candidates = baltopHistory
-    .filter(entry => now - entry.time >= minutes * 60 * 1000)
-    .sort((a, b) => b.time - a.time) // closest older entry
+  const candidates = auctionHistory
+    .filter(e =>
+      now - e.time >= minutes * 60000 &&
+      e.basket > 0
+    )
+    .sort((a,b)=>b.time-a.time)
 
   const past = candidates[0]
 
-  if (!past || !lastBaltopTotal) return null
+  if (!past || !lastAuctionBasket || past.basket === 0) return null
 
-  const change = ((lastBaltopTotal - past.total) / past.total) * 100
+  const change = ((lastAuctionBasket - past.basket) / past.basket) * 100
+
+  if (!isFinite(change)) return null
+
   return change
 }
 
@@ -1171,7 +1178,7 @@ async function updateAuctionEmbed() {
       { name: "🕛 12 Hours", value: format(infl720) },
       { name: "📅 24 Hours", value: format(infl1440) }
     )
-    .setFooter({ text: "Updates every 5 minutes via Auction House scan" })
+    .setFooter({ text: "InvadedLands Economy" })
     .setTimestamp()
 
   try {
@@ -1372,7 +1379,7 @@ async function updateInflationEmbed() {
       }
     )
     .setFooter({
-      text: `Auto-updates every ${Math.floor((parseInt(process.env.BALTOP_INTERVAL_MS || 300000)) / 60000)} minutes`
+      text: `InvadedLands Economy`
     })
     .setTimestamp()
 
