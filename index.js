@@ -38,7 +38,7 @@ const CPI_ITEMS = {
   "Enderman Spawner": []
 }
 
-const CPI_SAMPLE_SIZE = 5
+const CPI_SAMPLE_SIZE = 3
 const CPI_MIN_SAMPLE = 1
 // ================= CRATE TRACKER =================
 // ================= CRATE TRACKER =================
@@ -979,36 +979,43 @@ async function parseAuctionPage(window) {
     if (textLines.length === 0) continue
 
     let itemName = null
-    let price = null
+let price = null
 
-    for (const text of textLines) {
+const baseName = slot.name ? slot.name.toLowerCase() : ""
 
-      const normalized = text.toLowerCase()
+for (const text of textLines) {
 
-      // Detect items
-      if (normalized.includes("chicken") && normalized.includes("spawner")) {
-        itemName = "Chicken Spawner"
-      }
+  const normalized = text.toLowerCase()
 
-      if (normalized.includes("enderman") && normalized.includes("spawner")) {
-        itemName = "Enderman Spawner"
-      }
+  // Detect spawners using base item + text
+  if (baseName.includes("spawner")) {
 
-      if (normalized.includes("netherite")) {
-        itemName = "Block of Netherite"
-      }
-
-      if (normalized.includes("sell wand")) {
-        itemName = "Sell Wand (Tier 2)"
-      }
-
-      // Detect price
-      const match = text.match(/\$([\d,\.]+)/)
-
-      if (match) {
-        price = parseFloat(match[1].replace(/,/g, ""))
-      }
+    if (normalized.includes("chicken")) {
+      itemName = "Chicken Spawner"
     }
+
+    if (normalized.includes("enderman")) {
+      itemName = "Enderman Spawner"
+    }
+  }
+
+  // Netherite block
+  if (baseName.includes("netherite_block") || normalized.includes("netherite")) {
+    itemName = "Block of Netherite"
+  }
+
+  // Sell wand
+  if (normalized.includes("sell wand")) {
+    itemName = "Sell Wand (Tier 2)"
+  }
+
+  // Price detection
+  const match = text.match(/\$([\d,\.]+)/)
+
+  if (match) {
+    price = parseFloat(match[1].replace(/,/g, ""))
+  }
+}
 
     if (!itemName || !price) continue
 
