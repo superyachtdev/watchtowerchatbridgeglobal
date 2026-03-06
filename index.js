@@ -940,48 +940,68 @@ async function parseAuctionPage(window) {
 
   console.log(`📄 Scanning AH page ${pagesScanned}`)
 
-  for (const slot of window.slots) {
+  // Scan only actual item slots (avoid GUI buttons)
+  for (let i = 0; i < 45; i++) {
 
+    const slot = window.slots[i]
     if (!slot) continue
 
+    let displayName = slot.nbt?.value?.display?.value?.Name?.value
     let lore = slot.nbt?.value?.display?.value?.Lore?.value
-    if (!lore) continue
 
-    if (!Array.isArray(lore)) lore = [lore]
+    let textLines = []
+
+    // Read display name
+    if (displayName) {
+      try {
+        const parsed = JSON.parse(displayName)
+        textLines.push(parsed.text || "")
+      } catch {
+        textLines.push(String(displayName))
+      }
+    }
+
+    // Read lore lines
+    if (lore) {
+      if (!Array.isArray(lore)) lore = [lore]
+
+      for (const line of lore) {
+        textLines.push(String(line?.value ?? line?.text ?? line ?? ""))
+      }
+    }
+
+    if (textLines.length === 0) continue
 
     let itemName = null
     let price = null
 
-    for (const line of lore) {
+    for (const text of textLines) {
 
-      const text = String(line?.value ?? line?.text ?? line ?? "")
-
-      // Detect item name
       const normalized = text.toLowerCase()
 
-if (normalized.includes("chicken") && normalized.includes("spawner")) {
-  itemName = "Chicken Spawner"
-}
+      // Detect items
+      if (normalized.includes("chicken") && normalized.includes("spawner")) {
+        itemName = "Chicken Spawner"
+      }
 
-if (normalized.includes("enderman") && normalized.includes("spawner")) {
-  itemName = "Enderman Spawner"
-}
+      if (normalized.includes("enderman") && normalized.includes("spawner")) {
+        itemName = "Enderman Spawner"
+      }
 
-if (normalized.includes("netherite")) {
-  itemName = "Block of Netherite"
-}
+      if (normalized.includes("netherite")) {
+        itemName = "Block of Netherite"
+      }
 
-if (normalized.includes("sell wand")) {
-  itemName = "Sell Wand (Tier 2)"
-}
+      if (normalized.includes("sell wand")) {
+        itemName = "Sell Wand (Tier 2)"
+      }
 
       // Detect price
-      const match = text.match(/\$?\s*([\d,]+)/)
+      const match = text.match(/\$([\d,\.]+)/)
 
       if (match) {
         price = parseFloat(match[1].replace(/,/g, ""))
       }
-
     }
 
     if (!itemName || !price) continue
@@ -995,7 +1015,6 @@ if (normalized.includes("sell wand")) {
 
       console.log(`💰 Found ${itemName} listing: $${unitPrice}`)
     }
-
   }
 
   // Stop if enough samples collected
@@ -1014,20 +1033,11 @@ if (normalized.includes("sell wand")) {
     return
   }
 
-  // Next page button
   const nextButton = window.slots[53]
+
   if (!nextButton || nextButton.name === "gray_stained_glass_pane") {
-  console.log("📦 Reached final AH page")
-  finalizeAuctionBasket()
-  return
-}
-
-  if (!nextButton) {
-
-    console.log("📦 No more AH pages")
-
+    console.log("📦 Reached final AH page")
     finalizeAuctionBasket()
-
     return
   }
 
@@ -1035,23 +1045,21 @@ if (normalized.includes("sell wand")) {
 
     await bot.clickWindow(53, 0, 0)
 
-// give server time to update the GUI
-await bot.waitForTicks(15)
+    await bot.waitForTicks(15)
 
-const nextWindow = bot.currentWindow
+    const nextWindow = bot.currentWindow
 
-if (!nextWindow) {
-  console.log("❌ AH window disappeared")
-  finalizeAuctionBasket()
-  return
-}
+    if (!nextWindow) {
+      console.log("❌ AH window disappeared")
+      finalizeAuctionBasket()
+      return
+    }
 
-await parseAuctionPage(nextWindow)
+    await parseAuctionPage(nextWindow)
 
   } catch (err) {
 
     console.log("❌ Failed to open next AH page")
-
     finalizeAuctionBasket()
 
   }
