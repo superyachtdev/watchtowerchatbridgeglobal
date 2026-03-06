@@ -858,22 +858,19 @@ function handleBaltopTotal(total) {
 updateInflationEmbed()
 }
 
-function calculateAuctionInflation(minutes) {
+function calculateInflation(minutes) {
 
   const now = Date.now()
 
-  const candidates = auctionHistory
-    .filter(e =>
-      now - e.time >= minutes * 60000 &&
-      e.basket > 0
-    )
-    .sort((a,b)=>b.time-a.time)
+  const candidates = baltopHistory
+    .filter(entry => now - entry.time >= minutes * 60 * 1000)
+    .sort((a, b) => b.time - a.time)
 
   const past = candidates[0]
 
-  if (!past || !lastAuctionBasket || past.basket === 0) return null
+  if (!past || !lastBaltopTotal) return null
 
-  const change = ((lastAuctionBasket - past.basket) / past.basket) * 100
+  const change = ((lastBaltopTotal - past.total) / past.total) * 100
 
   if (!isFinite(change)) return null
 
