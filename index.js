@@ -18,6 +18,8 @@ let updatingEmbed = false
 let chatKeepAliveInterval = null
 let keepAliveInterval = null
 const AH_SEARCH_SLOT = 49
+let pagesScanned = 0
+const MAX_AH_PAGES = 10
 
 let defaultMovements 
 // ================= INFLATION TRACKER =================
@@ -890,20 +892,38 @@ async function scanAuctionHouse() {
   auctionScanning = true
 
   console.log("📊 Starting AH CPI scan")
+  pagesScanned = 0
 
   for (const item in CPI_ITEMS) {
     CPI_ITEMS[item] = []
   }
 
-  bot.chat("/ah")
+  try {
+    
 
-  bot.once("windowOpen", async (window) => {
+    bot.chat("/ah")
+
+    const window = await bot.waitForWindow()
+
+    console.log("📖 AH opened — scanning pages")
+
     await parseAuctionPage(window)
-  })
+
+  } catch (err) {
+
+    console.log("❌ AH scan failed:", err)
+
+    auctionScanning = false
+
+  }
 
 }
 
 async function parseAuctionPage(window) {
+
+  pagesScanned++
+
+  console.log(`📄 Scanning AH page ${pagesScanned}`)
 
   for (const slot of window.slots) {
 
@@ -914,21 +934,25 @@ async function parseAuctionPage(window) {
 
     if (!Array.isArray(lore)) lore = [lore]
 
-    let price = null
     let itemName = null
+    let price = null
 
     for (const line of lore) {
 
       const text = String(line?.value ?? line?.text ?? line ?? "")
 
+      // Detect item name
       for (const target in CPI_ITEMS) {
-        if (text.includes(target)) itemName = target
+        if (text.includes(target)) {
+          itemName = target
+        }
       }
 
+      // Detect price
       const match = text.match(/\$([\d,\.]+)/)
 
       if (match) {
-        price = parseFloat(match[1].replace(/,/g,""))
+        price = parseFloat(match[1].replace(/,/g, ""))
       }
 
     }
@@ -942,22 +966,54 @@ async function parseAuctionPage(window) {
 
       CPI_ITEMS[itemName].push(unitPrice)
 
+      console.log(`💰 Found ${itemName} listing: $${unitPrice}`)
     }
 
   }
 
-  const nextButton = window.slots[53]
+  // Stop if enough samples collected
+  const done = Object.values(CPI_ITEMS).every(v => v.length >= CPI_SAMPLE_SIZE)
 
-  if (!nextButton) {
+  if (done) {
+    console.log("✅ Required CPI samples collected")
     finalizeAuctionBasket()
     return
   }
 
-  bot.clickWindow(53, 0, 0)
+  // Stop if page limit reached
+  if (pagesScanned >= MAX_AH_PAGES) {
+    console.log("📦 Max AH pages reached")
+    finalizeAuctionBasket()
+    return
+  }
 
-  bot.once("windowOpen", async (nextWindow) => {
+  // Next page button
+  const nextButton = window.slots[53]
+
+  if (!nextButton) {
+
+    console.log("📦 No more AH pages")
+
+    finalizeAuctionBasket()
+
+    return
+  }
+
+  try {
+
+    await bot.clickWindow(53, 0, 0)
+
+    const nextWindow = await bot.waitForWindow()
+
     await parseAuctionPage(nextWindow)
-  })
+
+  } catch (err) {
+
+    console.log("❌ Failed to open next AH page")
+
+    finalizeAuctionBasket()
+
+  }
 
 }
 
