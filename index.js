@@ -1269,7 +1269,7 @@ async function updateCrateEmbed() {
         inline: false
       }
     )
-    .setFooter({ text: "Updates live on crate purchase" })
+    .setFooter({ text: "InvadedLands Economy" })
     .setTimestamp()
 
   try {
