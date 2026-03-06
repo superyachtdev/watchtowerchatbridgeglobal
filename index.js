@@ -1162,7 +1162,6 @@ async function updateAuctionEmbed() {
   const infl1440 = calculateAuctionInflation(1440)
 
   function format(percent){
-
     if (percent === null) return "⏳ Collecting..."
 
     const sign = percent >= 0 ? "+" : "-"
@@ -1171,15 +1170,27 @@ async function updateAuctionEmbed() {
     return `${emoji} **${sign}${Math.abs(percent).toFixed(2)}% Price Change**`
   }
 
+  // ✔ / ❌ indicators
+  function itemStatus(item){
+    if (!CPI_ITEMS[item] || CPI_ITEMS[item].length === 0) {
+      return `❌ ${item}`
+    } else {
+      return `✅ ${item}`
+    }
+  }
+
+  const basketList =
+    itemStatus("Chicken Spawner") + "\n" +
+    itemStatus("Block of Netherite") + "\n" +
+    itemStatus("Sell Wand (Tier 2)") + "\n" +
+    itemStatus("Enderman Spawner")
+
   const embed = new EmbedBuilder()
     .setColor(0x2ECC71)
     .setTitle("🧺 Core Inflation")
     .setDescription(
       `**Tracked Basket**\n` +
-      `Chicken Spawner\n` +
-      `Block of Netherite\n` +
-      `Sell Wand (Tier 2)\n` +
-      `Enderman Spawner\n\n` +
+      `${basketList}\n\n` +
       `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}`
     )
     .addFields(
