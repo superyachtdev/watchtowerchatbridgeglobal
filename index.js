@@ -1111,9 +1111,15 @@ if (baseName === "netherite_ingot") {
 }
 
 // Beacon
+// Beacon
 if (baseName === "beacon") {
 
-  const itemDisplay = textLines.join(" ").toLowerCase().trim()
+  const itemDisplay = textLines
+    .join(" ")
+    .replace(/§[0-9a-fk-or]/gi, "") // remove § color codes
+    .replace(/&[0-9a-fk-or]/gi, "") // remove & color codes
+    .toLowerCase()
+    .trim()
 
   if (itemDisplay === "beacon") {
     itemName = "Beacon"
