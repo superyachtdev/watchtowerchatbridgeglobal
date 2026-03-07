@@ -33,9 +33,15 @@ let auctionScanning = false
 
 const CPI_ITEMS = {
   "Chicken Spawner": [],
+  "Cow Spawner": [],
+  "Pig Spawner": [],
+  "Blaze Spawner": [],
+  "Rabbit Spawner": [],
+  "Enderman Spawner": [],
   "Block of Netherite": [],
-  "Sell Wand (Tier 2)": [],
-  "Enderman Spawner": []
+  "Netherite Ingot": [],
+  "Beacon": [],
+  "Sell Wand (Tier 2)": []
 }
 
 const CPI_SAMPLE_SIZE = 3
@@ -1072,22 +1078,45 @@ for (const text of textLines) {
   // Detect spawners using base item + text
   if (baseName.includes("spawner")) {
 
-    if (normalized.includes("chicken")) {
-      itemName = "Chicken Spawner"
-    }
+  if (normalized.includes("chicken")) itemName = "Chicken Spawner"
+  if (normalized.includes("cow")) itemName = "Cow Spawner"
+  if (normalized.includes("pig")) itemName = "Pig Spawner"
+  if (normalized.includes("blaze")) itemName = "Blaze Spawner"
+  if (normalized.includes("rabbit")) itemName = "Rabbit Spawner"
+  if (normalized.includes("enderman")) itemName = "Enderman Spawner"
 
-    if (normalized.includes("enderman")) {
-      itemName = "Enderman Spawner"
-    }
-  }
+}
 
   // Netherite block
- if (baseName === "netherite_block") {
+ // Netherite block
+if (baseName === "netherite_block") {
 
   const itemDisplay = textLines.join(" ").toLowerCase().trim()
 
   if (itemDisplay === "block of netherite") {
     itemName = "Block of Netherite"
+  }
+
+}
+
+// Netherite Ingot
+if (baseName === "netherite_ingot") {
+
+  const itemDisplay = textLines.join(" ").toLowerCase().trim()
+
+  if (itemDisplay === "netherite ingot") {
+    itemName = "Netherite Ingot"
+  }
+
+}
+
+// Beacon
+if (baseName === "beacon") {
+
+  const itemDisplay = textLines.join(" ").toLowerCase().trim()
+
+  if (itemDisplay === "beacon") {
+    itemName = "Beacon"
   }
 
 }
@@ -1287,10 +1316,16 @@ async function updateAuctionEmbed() {
   }
 
   const basketList =
-    itemStatus("Chicken Spawner") + "\n" +
-    itemStatus("Block of Netherite") + "\n" +
-    itemStatus("Sell Wand (Tier 2)") + "\n" +
-    itemStatus("Enderman Spawner")
+  itemStatus("Chicken Spawner") + "\n" +
+  itemStatus("Cow Spawner") + "\n" +
+  itemStatus("Pig Spawner") + "\n" +
+  itemStatus("Blaze Spawner") + "\n" +
+  itemStatus("Rabbit Spawner") + "\n" +
+  itemStatus("Enderman Spawner") + "\n" +
+  itemStatus("Block of Netherite") + "\n" +
+  itemStatus("Netherite Ingot") + "\n" +
+  itemStatus("Beacon") + "\n" +
+  itemStatus("Sell Wand (Tier 2)")
 
   const embed = new EmbedBuilder()
     .setColor(0x2ECC71)
