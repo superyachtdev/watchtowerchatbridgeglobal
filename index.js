@@ -315,8 +315,8 @@ lastBaltopTotal = parsed.lastBaltopTotal || null
 crateHistory = parsed.crateHistory || []
 
 // RESET AUCTION CPI DATA
-auctionHistory = []
-lastAuctionBasket = null
+auctionHistory = parsed.auctionHistory || []
+lastAuctionBasket = parsed.lastAuctionBasket || null
       
       console.log("📂 Loaded inflation history:", baltopHistory.length, "entries")
       console.log("📦 Loaded crate history:", crateHistory.length, "entries")
@@ -1299,7 +1299,7 @@ async function updateAuctionEmbed() {
   `**Tracked Basket**\n` +
   `${basketList}\n\n` +
   `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}\n\n` +
-  `📈 Click [here](https://watchtowerchatbridgeglobal-production.up.railway.app/coreinflation) to view in graph.`
+  `📈 cClick [here](https://watchtowerchatbridgeglobal-production.up.railway.app/coreinflation) to view in graph.`
 )
     .addFields(
       { name: "⏱ 30 Minutes", value: format(infl30) },
