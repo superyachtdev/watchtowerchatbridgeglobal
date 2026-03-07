@@ -1299,7 +1299,7 @@ async function updateAuctionEmbed() {
   `**Tracked Basket**\n` +
   `${basketList}\n\n` +
   `**Basket Value**\n$${lastAuctionBasket?.toLocaleString() || "Collecting"}\n\n` +
-  `📈 cClick [here](https://watchtowerchatbridgeglobal-production.up.railway.app/coreinflation) to view in graph.`
+  `📈 Click [here](https://watchtowerchatbridgeglobal-production.up.railway.app/coreinflation) to view in graph.`
 )
     .addFields(
       { name: "⏱ 30 Minutes", value: format(infl30) },
