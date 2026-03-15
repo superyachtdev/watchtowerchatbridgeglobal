@@ -1651,3 +1651,4 @@ async function init() {
   setInterval(scheduledRestart, 10800000)
 
 }
+init()
