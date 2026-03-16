@@ -1551,42 +1551,6 @@ async function updateInflationEmbed() {
   }
 }
 
-async function scheduledRestart() {
-
-  try {
-
-    console.log("♻ Scheduled restart starting...")
-
-    const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
-
-    if (channel) {
-
-      console.log("🧹 Clearing survival economy channel...")
-
-      let fetched
-      do {
-
-        fetched = await channel.messages.fetch({ limit: 100 })
-
-        if (fetched.size > 0) {
-          await channel.bulkDelete(fetched, true)
-        }
-
-      } while (fetched.size >= 2)
-
-    }
-
-  } catch (err) {
-
-    console.log("⚠ Failed clearing channel:", err.message)
-
-  }
-
-  console.log("🚀 Restarting container")
-
-  setTimeout(() => process.exit(0), 2000)
-
-}
 
 async function updateStatusEmbed() {
   if (updatingEmbed) return
@@ -1645,10 +1609,6 @@ async function init() {
   loadInflationData()
   updateCrateEmbed()
   startBot()
-
-  console.log("⏳ Scheduled restart every 3 hours")
-
-  setInterval(scheduledRestart, 10800000)
 
 }
 init()
