@@ -848,7 +848,7 @@ if (LINK_REGEX.test(message))
     violations.push("Filter Bypass")
 
   if (PRIVATE_INFO_REGEX.some(r => r.test(rawMessage)))
-    violations.push("Leaking Private Information")
+    violations.push("Leaking Information")
 
   // Basic mass messaging detection
     // ================= MASS MESSAGING (Rule 10 refined) =================
