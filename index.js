@@ -781,7 +781,11 @@ function parseChat(message) {
     .replace(/&[0-9a-fk-or]/gi,"")
     .trim()
 
-  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
+  // Allow nicked names (strip leading * and spaces)
+username = username.replace(/^\*\s*/, "")
+
+// If still empty, ignore
+if (!username) return null
 
   return {
     username,
