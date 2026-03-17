@@ -767,14 +767,31 @@ function parseChat(message) {
   let usernameSection = before
 
   if (before.includes("[")) {
-    const match = before.match(/\[(.*?)\]/)
-    if (match && match[1]) {
-      const normalized = match[1].trim().replace(/-/g," ").toLowerCase()
-      const found = HUB_RANKS.find(r => r.toLowerCase() === normalized)
-      detectedRank = found || "Invaded"
+
+  const match = before.match(/\[(.*?)\]/)
+
+  if (match && match[1]) {
+
+    const normalized = match[1]
+      .trim()
+      .replace(/-/g, " ")
+      .toLowerCase()
+
+    const found = HUB_RANKS.find(
+      r => r.toLowerCase() === normalized
+    )
+
+    // ✅ ONLY set rank if it's actually a real rank
+    if (found) {
+      detectedRank = found
+    } else {
+      detectedRank = "Default"
     }
-    usernameSection = before.split("]").pop().trim()
+
   }
+
+  usernameSection = before.split("]").pop().trim()
+}
 
   let username = usernameSection
     .replace(/§[0-9a-fk-or]/gi,"")
