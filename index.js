@@ -18,6 +18,7 @@ let updatingEmbed = false
 let chatKeepAliveInterval = null
 let keepAliveInterval = null
 const AH_SEARCH_SLOT = 49
+let lastActivity = Date.now()
 let pagesScanned = 0
 const MAX_AH_PAGES = 10
 
@@ -494,6 +495,7 @@ if (content.toLowerCase().startsWith("follow:")) {
 
 // ================= BOT =================
 function startBot() {
+
   bot = mineflayer.createBot({
     host: process.env.MC_HOST,
     port: parseInt(process.env.MC_PORT),
@@ -509,214 +511,153 @@ function startBot() {
   bot.setMaxListeners(50)
 
   bot.loadPlugin(pathfinder)
+
+  // ================= ERROR =================
   bot.on("error", (err) => {
 
-  if (err.code === "ECONNRESET") {
-    console.log("Proxy transfer detected — ignoring reset")
-    return
-  }
-
-  console.log("Bot error:", err.code || err.message)
-})
-
-  bot.once("spawn", () => {
-  console.log("🤖 Bot spawned — initializing pathfinder")
-
-  const mcData = require("minecraft-data")(bot.version)
-
-  defaultMovements = new Movements(bot, mcData)
-  defaultMovements.allow1by1towers = false
-  defaultMovements.canDig = false
-  defaultMovements.allowParkour = true
-  defaultMovements.allowSprinting = true
-  defaultMovements.canOpenDoors = true
-
-  bot.pathfinder.setMovements(defaultMovements)
-
-  // Stabilizers
-  bot.pathfinder.thinkTimeout = 10000
-  bot.pathfinder.tickTimeout = 40
-
-  
-  // Anti-stuck protection
-
-  if (baltopInterval) clearInterval(baltopInterval)
-
-baltopInterval = setInterval(() => {
-  if (bot && bot.player) {
-
-    baltopResolved = false
-    bot.chat("/baltop")
-
-    if (baltopWatchdog) clearTimeout(baltopWatchdog)
-
-    baltopWatchdog = setTimeout(async () => {
-
-  if (!baltopResolved && discordClient) {
-
-    try {
-
-      const channel = await discordClient.channels.fetch(process.env.INFLATION_CHANNEL_ID)
-      if (!channel) return
-
-      const embed = new EmbedBuilder()
-        .setColor(0xE74C3C)
-        .setTitle("⚠ Baltop Command Unavailable")
-        .setDescription(
-          "The `/baltop` command did not return **Server Total** within 20 seconds.\n\n" +
-          "Economy calculations are currently paused until the command works again."
-        )
-        .setTimestamp()
-
-      if (!baltopErrorMessage) {
-        baltopErrorMessage = await channel.send({ embeds: [embed] })
-      } else {
-        await baltopErrorMessage.edit({ embeds: [embed] })
-      }
-
-    } catch (err) {
-      console.log("Failed to update baltop error:", err.message)
+    if (err.code === "ECONNRESET") {
+      console.log("Proxy transfer detected — ignoring reset")
+      return
     }
 
-  }
-
-}, 20000)
-
-  }
-}, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
-  setInterval(() => {
-
-  if (!bot || !bot.player) return
-  if (auctionScanning) return
-
-
-
-  scanAuctionHouse()
-
-}, 300000) // every 5 minutes
-  setTimeout(() => walkToNPC(), 12000)
-
-  if (onlineInterval) clearInterval(onlineInterval)
-
-// Start polling AFTER server transfer
-setTimeout(() => {
-
-  console.log("📊 Starting /online polling")
-
-  if (onlineInterval) clearInterval(onlineInterval)
-
-  onlineInterval = setInterval(() => {
-  if (!bot || !bot.player) return
-  if (auctionScanning) return
-
-  bot.chat("/online")
-}, 15000)
-
-}, 25000) // wait longer so proxy transfer finishes
-// keep connection alive
-// ================= RTP KEEPALIVE =================
-// ================= PUNCH KEEPALIVE =================
-if (keepAliveInterval) clearInterval(keepAliveInterval)
-
-keepAliveInterval = setInterval(() => {
-
-  if (!bot || !bot.player) return
-
-  try {
-    bot.swingArm("right")
-    console.log("👊 Bot punched")
-  } catch (err) {}
-
-}, 120000)
-})
-
-
-  bot.on("message", async (jsonMsg) => {
-  const raw = jsonMsg.toString().trim()
-  // ================= CRATE PURCHASE DETECTION =================
-if (raw.includes("[Broadcast]") && raw.toUpperCase().includes("CRATE KEY")) {
-  const now = Date.now()
-
-  const match = raw.toUpperCase().match(/(\d+)X\s+([A-Z]+)\s+CRATE KEY/)
-  if (match) {
-    const amount = parseInt(match[1])
-    const typeRaw = match[2]
-
-    let type = null
-    if (typeRaw.includes("MARCH")) type = "March"
-    if (typeRaw.includes("INVADED")) type = "Invaded"
-
-    if (type) {
-      for (let i = 0; i < amount; i++) {
-        crateHistory.push({
-          time: now,
-          type
-        })
-      }
-
-      // Keep only 24h
-      crateHistory = crateHistory.filter(
-        entry => now - entry.time <= 24 * 60 * 60 * 1000
-      )
-
-      saveInflationData()
-      updateCrateEmbed()
-    }
-  }
-}
-
- const baltopMatch = raw.match(/Server Total:\s*\$?([\d,]+)/i)
-
-if (baltopMatch) {
-
-  baltopResolved = true
-  if (baltopWatchdog) clearTimeout(baltopWatchdog)
-     if (baltopErrorMessage) {
-  inflationMessage = baltopErrorMessage
-  baltopErrorMessage = null
-}
-    
-
-  const cleaned = baltopMatch[1].replace(/,/g, "")
-  const total = parseFloat(cleaned)
-
-  if (!isNaN(total)) {
-    handleBaltopTotal(total)
-  }
-
-  return
-}
-  // ================= ONLINE COUNT DETECTION =================
-  const onlineMatch = raw.match(/There is \((\d+)\/300\) players online\./)
-  if (onlineMatch) {
-    survivalOnline = parseInt(onlineMatch[1])
-    await updateStatusEmbed()
-    return
-  }
-
-  if (!raw.includes(":")) return
-
-    const parsed = parseChat(raw)
-    if (!parsed) return
-
-    sendToDiscord(parsed)
-    runModeration(parsed)
+    console.log("Bot error:", err.code || err.message)
   })
 
-  bot.on("end", () => {
-  console.log("🔌 Disconnected from server")
+  // ================= KICK =================
+  bot.on("kicked", (reason) => {
 
-  alreadyWalking = false
+    console.log("⚠ Bot kicked:", reason)
 
-  if (reconnecting) return
+    if (reconnecting) return
+    reconnecting = true
+
+    setTimeout(() => {
+      console.log("🔄 Reconnecting after kick...")
+      reconnecting = false
+      startBot()
+    }, 8000)
+
+  })
+
+  // ================= SPAWN =================
+  bot.once("spawn", () => {
+
+    console.log("🤖 Bot spawned — initializing pathfinder")
+
+    const mcData = require("minecraft-data")(bot.version)
+
+    defaultMovements = new Movements(bot, mcData)
+    defaultMovements.allow1by1towers = false
+    defaultMovements.canDig = false
+    defaultMovements.allowParkour = true
+    defaultMovements.allowSprinting = true
+    defaultMovements.canOpenDoors = true
+
+    bot.pathfinder.setMovements(defaultMovements)
+
+    bot.pathfinder.thinkTimeout = 10000
+    bot.pathfinder.tickTimeout = 40
+
+    // ================= BALT0P =================
+    if (baltopInterval) clearInterval(baltopInterval)
+
+    baltopInterval = setInterval(() => {
+
+      if (!bot || !bot.player) return
+
+      baltopResolved = false
+      bot.chat("/baltop")
+
+      if (baltopWatchdog) clearTimeout(baltopWatchdog)
+
+      baltopWatchdog = setTimeout(() => {
+
+        if (!baltopResolved && discordClient) {
+          console.log("⚠ Baltop failed to respond")
+        }
+
+      }, 20000)
+
+    }, parseInt(process.env.BALTOP_INTERVAL_MS || 300000))
+
+    // ================= AH =================
+    setInterval(() => {
+      if (!bot || !bot.player) return
+      if (auctionScanning) return
+      scanAuctionHouse()
+    }, 300000)
+
+    // ================= WALK =================
+    setTimeout(() => walkToNPC(), 12000)
+
+    // ================= ONLINE =================
+    setTimeout(() => {
+
+      if (onlineInterval) clearInterval(onlineInterval)
+
+      onlineInterval = setInterval(() => {
+        if (!bot || !bot.player) return
+        bot.chat("/online")
+      }, 15000)
+
+    }, 25000)
+
+    // ================= KEEPALIVE =================
+    if (keepAliveInterval) clearInterval(keepAliveInterval)
+
+    keepAliveInterval = setInterval(() => {
+      if (!bot || !bot.player) return
+      try { bot.swingArm("right") } catch {}
+    }, 120000)
+
+    // ================= WATCHDOG =================
+    setInterval(() => {
+
+      if (!bot || !bot.player) return
+
+      const idleTime = Date.now() - lastActivity
+
+      if (idleTime > 300000) {
+        console.log("⚠ Bot frozen — forcing reconnect")
+
+        try { bot.quit() } catch {}
+
+if (!reconnecting) {
   reconnecting = true
-
   setTimeout(() => {
-    console.log("🔄 Reconnecting bot...")
     reconnecting = false
     startBot()
-  }, 10000)
-})
+  }, 2000)
+}
+      }
+
+    }, 60000)
+
+  })
+
+  // ================= MESSAGE =================
+  bot.on("message", (jsonMsg) => {
+    lastActivity = Date.now()
+  })
+
+  // ================= END =================
+  bot.on("end", () => {
+
+    console.log("🔌 Disconnected from server")
+
+    alreadyWalking = false
+
+    if (reconnecting) return
+    reconnecting = true
+
+    setTimeout(() => {
+      console.log("🔄 Reconnecting bot...")
+      reconnecting = false
+      startBot()
+    }, 8000)
+
+  })
+
 }
 
 // ================= WALK =================
