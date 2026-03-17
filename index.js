@@ -1,4 +1,3 @@
-
 require("dotenv").config()
 
 const mineflayer = require("mineflayer")
@@ -767,42 +766,21 @@ function parseChat(message) {
   let usernameSection = before
 
   if (before.includes("[")) {
-
-  const match = before.match(/\[(.*?)\]/)
-
-  if (match && match[1]) {
-
-    const normalized = match[1]
-      .trim()
-      .replace(/-/g, " ")
-      .toLowerCase()
-
-    const found = HUB_RANKS.find(
-      r => r.toLowerCase() === normalized
-    )
-
-    // ✅ ONLY set rank if it's actually a real rank
-    if (found) {
-      detectedRank = found
-    } else {
-      detectedRank = "Default"
+    const match = before.match(/\[(.*?)\]/)
+    if (match && match[1]) {
+      const normalized = match[1].trim().replace(/-/g," ").toLowerCase()
+      const found = HUB_RANKS.find(r => r.toLowerCase() === normalized)
+      detectedRank = found || "Invaded"
     }
-
+    usernameSection = before.split("]").pop().trim()
   }
-
-  usernameSection = before.split("]").pop().trim()
-}
 
   let username = usernameSection
     .replace(/§[0-9a-fk-or]/gi,"")
     .replace(/&[0-9a-fk-or]/gi,"")
     .trim()
 
-  // Allow nicked names (strip leading * and spaces)
-username = username.replace(/^\*\s*/, "")
-
-// If still empty, ignore
-if (!username) return null
+  if (!username.match(/^[A-Za-z0-9_]{1,20}$/)) return null
 
   return {
     username,
@@ -848,7 +826,7 @@ if (LINK_REGEX.test(message))
     violations.push("Filter Bypass")
 
   if (PRIVATE_INFO_REGEX.some(r => r.test(rawMessage)))
-    violations.push("Leaking Information")
+    violations.push("Leaking Private Information")
 
   // Basic mass messaging detection
     // ================= MASS MESSAGING (Rule 10 refined) =================
@@ -1634,4 +1612,6 @@ async function init() {
 
 }
 init()
+
+
 
