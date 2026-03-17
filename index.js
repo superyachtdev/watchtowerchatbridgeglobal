@@ -636,9 +636,63 @@ if (!reconnecting) {
   })
 
   // ================= MESSAGE =================
-  bot.on("message", (jsonMsg) => {
-    lastActivity = Date.now()
-  })
+  bot.on("message", async (jsonMsg) => {
+
+  lastActivity = Date.now()
+
+  const raw = jsonMsg.toString().trim()
+
+  // ================= ONLINE COUNT =================
+  const onlineMatch = raw.match(/\((\d+)\/(\d+)\)/)
+
+  if (onlineMatch) {
+    const current = parseInt(onlineMatch[1])
+    const detectedMax = parseInt(onlineMatch[2])
+
+    if (detectedMax === 300) {
+      survivalOnline = current
+      await updateStatusEmbed()
+      return
+    }
+  }
+
+  // ================= BALT0P PARSE =================
+  if (raw.includes("$")) {
+
+    const matches = raw.match(/\$[\d,]+/g)
+
+    if (matches && matches.length >= 10) {
+
+      let total = 0
+
+      for (const m of matches) {
+        total += parseInt(m.replace(/[$,]/g, ""))
+      }
+
+      baltopResolved = true
+
+      console.log("💰 Baltop total:", total)
+
+      handleBaltopTotal(total)
+
+      return
+    }
+  }
+
+  // ================= CHAT PARSE =================
+  if (!raw.includes(":")) return
+
+  const data = parseChat(raw)
+
+  if (!data) return
+
+  // send embed
+  await sendToDiscord(data)
+
+  // run moderation
+  runModeration(data)
+
+})
 
   // ================= END =================
   bot.on("end", () => {
